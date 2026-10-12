@@ -236,61 +236,65 @@ pre.csv{background:var(--bg);border:1px solid var(--line);border-radius:8px;padd
    ===================================================================== */
 const C="Customer",E="Experia",V="Vendor",RESP=[C,E,V];
 const R=(c,t,s,o={})=>({c,t,s,ty:"M",r:C,v:"Visual",...o});
-/* CT — built from Experia "Site Requirements and Responsibility Matrix – CT 5300" (Matrix)
-   plus Philips iCT site preparation package JO-24-00007 Rev A (SPS = specifications, SPD = drawings).
-   Generic rows apply to every CT model; "only" rows and "m" overrides apply to the named model. */
+/* CT — general rows = Experia "Site Requirements and Responsibility Matrix" (Matrix) + common Philips site-prep rules.
+   CT5300 = Philips CT 5300 site preparation package JO-25-00009 Rev A (5300 SPS / 5300 SPD).
+   ICT    = Philips iCT site preparation package JO-24-00007 Rev A (iCT SPS / iCT SPD).
+   "only" limits a row to the listed profiles ("" = Other CT model); "m" overrides spec/rule per model. */
+const B2=["CT5300","ICT"];
 const CT_REQS=[
- R("Electrical","Main power cable","3-phase, 5-wire (L1, L2, L3, N, PE), 380/400 VAC",{src:"Matrix E1",m:{ICT:{s:"3-phase wye: L1, L2, L3 + PE1 + PE2 to PDU, 380/400/415/480 VAC",src:"SPS §3.2.2"}}}),
- R("Electrical","Supply voltage (L-L, measured)","380/400 VAC ± 10 %",{v:"Meter",op:"range",mn:342,mx:440,src:"SPS §3.2.3"}),
- R("Electrical","Power capacity","115 kVA",{v:"Document",src:"Matrix E1",m:{ICT:{s:"175 kVA momentary (5 s), 25 kVA steady; 225 kVA isolation transformer if a separate source is needed",src:"SPS §3.2.3"}}}),
- R("Electrical","Power box / main breaker","MCCB 125 A + earth busbar + neutral busbar",{src:"Matrix E2",m:{ICT:{s:"Room safety disconnect 200 A @ 380/400/415 V, Class B slow-trip, lockable",src:"SPS §3.2.3, Annex"}}}),
- R("Electrical","Earth-leakage breaker (RCD)","30 mA, 200 A, Type B, 70 mm² terminals, if local code requires",{ty:"C",only:["ICT"],src:"SPS §3.2.4"}),
- R("Electrical","Earthing","One earth reference terminal with removable link; earth resistance < 5 Ω (ideal ≤ 2 Ω)",{v:"Meter",op:"<=",mx:5,src:"SPS §3.2.5"}),
- R("Electrical","Mains resistance (L-L)","≤ 105 mΩ at 400 V (100 at 380 V, 109 at 415 V)",{v:"Meter",op:"<=",mx:105,only:["ICT"],src:"SPS §3.2.3"}),
- R("Electrical","Phase imbalance","≤ 3 %",{v:"Meter",op:"<=",mx:3,only:["ICT"],src:"SPS §3.2.3"}),
- R("Electrical","Voltage distortion (THDv)","≤ 8 %",{v:"Meter",op:"<=",mx:8,only:["ICT"],src:"SPS §3.2.3"}),
- R("Electrical","Mains switch","Control room wall, per wall provisions drawing",{only:["ICT"],src:"SPD A-1 4.1, X-3"}),
- R("Electrical","Terminal junction box","Above PDU; Philips cable to PDU ≤ 1.5 m",{only:["ICT"],src:"SPD A-1 3.4, X-3"}),
- R("Electrical","Emergency power OFF switch","Control room; latching mushroom button, N.O. contact to PDU shunt trip",{only:["ICT"],src:"SPD A-1 4.3, SPS Annex"}),
- R("Electrical","X-ray ON warning light","Above entrance door, per drawings",{src:"Matrix E3",m:{ICT:{s:"Above entrance door; relay max 6 A / 230 V, lamp response 1–1000 ms, cable to gantry",src:"SPS §3.2.7"}}}),
- R("Electrical","Door interlock contacts","Per drawings, cable routed to gantry",{ty:"C",only:["ICT"],src:"SPS §3.2.7"}),
- R("Electrical","Power outlets in exam room","Single-phase 220 V",{src:"Matrix E4",m:{ICT:{s:"2 × dedicated single-phase outlets (X-3 item 4)",src:"SPD X-3"}}}),
+ R("Electrical","Main power cable","3-phase, 5-wire (L1, L2, L3, N, PE), 380/400 VAC",{src:"Matrix E1",m:{CT5300:{s:"3-phase wye, 5-wire (L1, L2, L3, N, PE) to gantry, 380/400/415 VAC; or 3-phase delta 4-wire to isolation transformer",src:"5300 SPS §3.2.2"},ICT:{s:"3-phase wye: L1, L2, L3 + PE1 + PE2 to PDU, 380/400/415/480 VAC",src:"iCT SPS §3.2.2"}}}),
+ R("Electrical","Supply voltage (L-L, measured)","380/400 VAC ± 10 %",{v:"Meter",op:"range",mn:342,mx:440,src:"Philips SPS §3.2.3",m:{CT5300:{s:"380/400 VAC ± 10 %; must stay ≥ 342 V at the gantry at full load",src:"5300 SPS §3.2.4"}}}),
+ R("Electrical","Power capacity","115 kVA",{v:"Document",src:"Matrix E1",m:{CT5300:{s:"115 kVA from a dedicated circuit (115 kVA for 6 s at 80 kW); standby 4 kVA",src:"5300 SPS §3.2.3"},ICT:{s:"175 kVA momentary (5 s), 25 kVA steady; 225 kVA isolation transformer if a separate source is needed",src:"iCT SPS §3.2.3"}}}),
+ R("Electrical","Power box / main breaker","MCCB 125 A + earth busbar + neutral busbar",{src:"Matrix E2",m:{CT5300:{s:"Room safety disconnect 125 A, Class B slow-trip, with shunt trip (150 A with isolation transformer)",src:"5300 SPS §3.2.3, §3.2.5"},ICT:{s:"Room safety disconnect 200 A @ 380/400/415 V, Class B slow-trip, lockable",src:"iCT SPS §3.2.3, Annex"}}}),
+ R("Electrical","Earth-leakage breaker (RCD)","Per local code",{ty:"C",only:B2,src:"Philips SPS",m:{CT5300:{s:"Per local code; mandatory on TT systems; trip ≤ 40 ms; none between isolation transformer and gantry",src:"5300 SPS §3.2.5"},ICT:{s:"30 mA, 200 A, Type B, 70 mm² terminals, if local code requires",src:"iCT SPS §3.2.4"}}}),
+ R("Electrical","Earthing","One earth reference terminal with removable link; earth resistance < 5 Ω (ideal ≤ 2 Ω)",{v:"Meter",op:"<=",mx:5,src:"Philips SPS (earthing)"}),
+ R("Electrical","Mains resistance (L-L)","Per vendor line impedance table",{v:"Meter",op:"<=",only:B2,src:"Philips SPS",m:{CT5300:{s:"≤ 200 mΩ line to line at 380 V",mx:200,src:"5300 SPD A-1, SPS §3.2.4"},ICT:{s:"≤ 105 mΩ at 400 V (100 at 380 V, 109 at 415 V)",mx:105,src:"iCT SPS §3.2.3"}}}),
+ R("Electrical","Phase imbalance","≤ 3 %",{v:"Meter",op:"<=",mx:3,only:["ICT"],src:"iCT SPS §3.2.3"}),
+ R("Electrical","Voltage distortion (THDv)","Per vendor",{v:"Meter",op:"<=",only:B2,src:"Philips SPS",m:{CT5300:{s:"≤ 5 %",mx:5,src:"5300 SPS §3.2.3"},ICT:{s:"≤ 8 %",mx:8,src:"iCT SPS §3.2.3"}}}),
+ R("Electrical","Supply frequency","50 Hz ± 1 Hz",{v:"Meter",op:"range",mn:49,mx:51,only:["CT5300"],src:"5300 SPS §3.2.3"}),
+ R("Electrical","Mains switch","Control room wall, per wall provisions drawing",{only:B2,src:"Philips SPD A-1 4.1, X-3"}),
+ R("Electrical","Terminal junction box","Above PDU; Philips cable to PDU ≤ 1.5 m",{only:["ICT"],src:"iCT SPD A-1 3.4, X-3"}),
+ R("Electrical","Emergency power OFF switch","Control room, per drawings",{only:B2,src:"Philips SPD A-1 4.3",m:{CT5300:{s:"Control room per drawings; cable routed to gantry (or main cabinet if a transformer is used)",src:"5300 SPS §3.2.8"},ICT:{s:"Control room; latching mushroom button, N.O. contact to PDU shunt trip",src:"iCT SPD A-1 4.3, SPS Annex"}}}),
+ R("Electrical","X-ray ON warning light","Above entrance door, per drawings",{src:"Matrix E3",m:{CT5300:{s:"Above entrance door; AC lamp only (no DC); relay max 6 A / 230 V, response 1–1000 ms",src:"5300 SPS §3.2.8"},ICT:{s:"Above entrance door; relay max 6 A / 230 V, lamp response 1–1000 ms, cable to gantry",src:"iCT SPS §3.2.7"}}}),
+ R("Electrical","Door interlock contacts","Per drawings, cable routed to gantry",{ty:"C",only:B2,src:"Philips SPS (safety)"}),
+ R("Electrical","Power outlets in exam room","Single-phase 220 V",{src:"Matrix E4",m:{CT5300:{s:"2 × dedicated single-phase outlets (X-3 item 4)",src:"5300 SPD X-3"},ICT:{s:"2 × dedicated single-phase outlets (X-3 item 4)",src:"iCT SPD X-3"}}}),
  R("Electrical","Power outlets under control desk","4 × single-phase 220 V",{src:"Matrix E6"}),
- R("Electrical","Lighting","Room lighting installed",{src:"Matrix E8",m:{ICT:{s:"50–100 lux operation (dimmable), 500 lux service; fixtures clear of equipment",src:"SPS §3.2.6"}}}),
- R("Electrical","Service lighting level","≥ 500 lux on the floor",{v:"Meter",op:">=",mn:500,only:["ICT"],src:"SPS §3.2.6"}),
- R("Network","Data outlets in exam room","Data outlets installed",{src:"Matrix E5",m:{ICT:{s:"Network connection 1 Gb RJ45 (X-3 item 5)",src:"SPD X-3"}}}),
+ R("Electrical","Lighting","Room lighting installed",{src:"Matrix E8",m:{CT5300:{s:"Min. 500 lux operation (adjustable), 500 lux service; fixtures clear of equipment",src:"5300 SPS §3.2.7"},ICT:{s:"50–100 lux operation (dimmable), 500 lux service; fixtures clear of equipment",src:"iCT SPS §3.2.6"}}}),
+ R("Electrical","Service lighting level","≥ 500 lux on the floor",{v:"Meter",op:">=",mn:500,only:B2,src:"Philips SPS (lighting)"}),
+ R("Network","Data outlets in exam room","Data outlets installed",{src:"Matrix E5",m:{CT5300:{s:"Network connection 1 Gb RJ45 (X-3 item 5)",src:"5300 SPD X-3"},ICT:{s:"Network connection 1 Gb RJ45 (X-3 item 5)",src:"iCT SPD X-3"}}}),
  R("Network","Data outlets under control desk","2 × data outlets",{src:"Matrix E7"}),
- R("Network","Remote service connection","RJ45 with hospital network / internet (1000 Mbps), IP addresses allocated",{src:"SPD A-1, SPS §3.4"}),
+ R("Network","Remote service connection","RJ45 with hospital network / internet, IP addresses allocated",{src:"Philips SPS (networking)",m:{CT5300:{s:"RJ45 10/100/1000 Mbps with hospital network / internet, IP addresses allocated",src:"5300 SPD A-1, SPS §3.5"},ICT:{s:"RJ45 1000 Mbps with hospital network / internet, IP addresses allocated",src:"iCT SPD A-1, SPS §3.4"}}}),
  R("Mechanical","AC – CT exam room","4 Ton (2 × 2 Ton split units)",{src:"Matrix M1"}),
- R("Mechanical","Heat load – exam room","Equipment ≈ 5 kW + room volume and people",{v:"Document",src:"Matrix comment",m:{ICT:{s:"Gantry 9.63 kW + room volume and people",src:"SPS §4.2"}}}),
- R("Mechanical","AC – control room","1.5 Ton × 1",{src:"Matrix M2",m:{ICT:{s:"1.5 Ton × 1; equipment heat ≈ 2 kW (CRC 1.71 + monitor 0.29 kW)",src:"Matrix M2, SPS §4.2"}}}),
- R("Mechanical","AC – technical room","Equipment heat ≈ 3.3 kW (PDU 1.53 + compressor 1.49 + UPS 0.25 kW)",{only:["ICT"],src:"SPS §4.2"}),
- R("Mechanical","Exam room temperature","18 – 24 °C",{v:"Meter",op:"range",mn:18,mx:24,src:"SPD A-1"}),
- R("Mechanical","Exam room humidity","35 – 70 % RH, non-condensing",{v:"Meter",op:"range",mn:35,mx:70,src:"SPD A-1"}),
- R("Mechanical","Control room temperature","15 – 24 °C",{v:"Meter",op:"range",mn:15,mx:24,src:"SPD A-1"}),
- R("Mechanical","Technical room temperature","15 – 27 °C",{v:"Meter",op:"range",mn:15,mx:27,only:["ICT"],src:"SPD A-1"}),
- R("Mechanical","Temperature stability","Change ≤ 3 °C per hour",{v:"Document",src:"SPD A-1"}),
- R("Mechanical","Air quality","Fully ducted supply/return, no open ceiling plenum; construction dust removed",{only:["ICT"],src:"SPS §4.2"}),
+ R("Mechanical","Heat load – exam room","Equipment ≈ 5 kW + room volume and people",{v:"Document",src:"Matrix note",m:{CT5300:{s:"Gantry 5.0 kW scanning (1.5 kW standby) + room volume and people; ideal room 22 °C",src:"5300 SPS §4.2"},ICT:{s:"Gantry 9.63 kW + room volume and people",src:"iCT SPS §4.2"}}}),
+ R("Mechanical","AC vent position","No supply vents directly above the gantry or patient table",{only:["CT5300"],src:"5300 SPS §4.2"}),
+ R("Mechanical","AC – control room","1.5 Ton × 1",{src:"Matrix M2",m:{CT5300:{s:"1.5 Ton × 1; equipment heat ≈ 0.4 kW (host 0.30 + UPS 0.11 kW)",src:"Matrix M2, 5300 SPS §4.2"},ICT:{s:"1.5 Ton × 1; equipment heat ≈ 2 kW (CRC 1.71 + monitor 0.29 kW)",src:"Matrix M2, iCT SPS §4.2"}}}),
+ R("Mechanical","AC – technical room","Equipment heat ≈ 3.3 kW (PDU 1.53 + compressor 1.49 + UPS 0.25 kW)",{only:["ICT"],src:"iCT SPS §4.2"}),
+ R("Mechanical","Exam room temperature","18 – 24 °C",{v:"Meter",op:"range",mn:18,mx:24,src:"Philips SPD A-1"}),
+ R("Mechanical","Exam room humidity","35 – 70 % RH, non-condensing",{v:"Meter",op:"range",mn:35,mx:70,src:"Philips SPD A-1",m:{CT5300:{s:"40 – 70 % RH, non-condensing",mn:40,src:"5300 SPS §4.2"}}}),
+ R("Mechanical","Control room temperature","15 – 24 °C",{v:"Meter",op:"range",mn:15,mx:24,src:"Philips SPD A-1",m:{CT5300:{s:"10 – 30 °C (UPS battery max 25 °C)",mn:10,mx:30,src:"5300 SPD A-1, SPS §4.2"}}}),
+ R("Mechanical","Technical room temperature","15 – 27 °C",{v:"Meter",op:"range",mn:15,mx:27,only:["ICT"],src:"iCT SPD A-1"}),
+ R("Mechanical","Temperature stability","Change ≤ 3 °C per hour",{v:"Document",src:"Philips SPD A-1",m:{CT5300:{s:"Change ≤ 5 °C per hour",src:"5300 SPD A-1"}}}),
+ R("Mechanical","Air quality","Fully ducted supply/return, no open ceiling plenum; construction dust removed",{only:B2,src:"Philips SPS §4.2"}),
  R("Mechanical","Drain for AC systems","Condensate drain for each unit",{src:"Matrix M3"}),
  R("Mechanical","Medical gas","As required by the customer",{ty:"C",src:"Matrix M4"}),
  R("Mechanical","Firefighting system","Per civil defence code",{src:"Matrix M5"}),
  R("Civil","Exam room floor area","Per approved site layout",{v:"Laser",ln:"area",src:"Survey"}),
- R("Civil","Ceiling height (finished)","Per approved site layout",{v:"Laser",ln:"ceiling",src:"Survey",m:{ICT:{s:"≥ 2.60 m; suspended ceiling 2.80 m, slab 3.00 m",op:">=",mn:2.6,src:"SPD AD-1"}}}),
+ R("Civil","Ceiling height (finished)","Per approved site layout",{v:"Laser",ln:"ceiling",src:"Survey",m:{CT5300:{s:"≥ 2.30 m minimum (suspended ceiling)",op:">=",mn:2.3,src:"5300 SPD AD-1"},ICT:{s:"≥ 2.60 m; suspended ceiling 2.80 m, slab 3.00 m",op:">=",mn:2.6,src:"iCT SPD AD-1"}}}),
  R("Civil","Lead shielding walls","4 mm Pb up to 3 m height (final value per radiation protection report)",{v:"Document",src:"Matrix C1"}),
- R("Civil","Radiation protection approval","Shielding approved by the radiation authority before installation",{v:"Document",src:"SPS §1.6"}),
+ R("Civil","Radiation protection approval","Shielding approved by the radiation authority before installation",{v:"Document",src:"Philips SPS §1.6"}),
  R("Civil","Leaded entrance door – width","120 cm clear opening",{v:"Laser",op:">=",mn:1.2,ln:"door",src:"Matrix C2"}),
  R("Civil","Leaded entrance door – height","210 cm clear opening",{v:"Laser",op:">=",mn:2.1,src:"Matrix C2"}),
  R("Civil","Leaded glass window – width","120 × 80 cm, control room",{v:"Laser",op:">=",mn:1.2,src:"Matrix C5"}),
  R("Civil","Window and door frames","Installed",{src:"Matrix C6"}),
  R("Civil","Control room door","Leaded if it opens into the exam room",{src:"Matrix C7"}),
- R("Civil","Concrete base","Base for gantry and table",{src:"Matrix C3",m:{ICT:{s:"Base plate provision (XD-1); gantry 8 × Hilti KB3 3/4\" (25.4 kN), table 5 × KB3 3/8\" (8.7 kN)",src:"SPD XD-1, SPS §2.2.1"}}}),
- R("Civil","Floor load capacity","Suitable for gantry and table",{v:"Document",src:"SPS §2.1",m:{ICT:{s:"Gantry 2,566 kg, table 445 kg, PDU 531 kg",src:"SPS §2.2.1"}}}),
- R("Civil","Floor levelness","Floor perfectly level",{v:"Meter",src:"Matrix C12",m:{ICT:{s:"< 6.35 mm across the equipment area",op:"<=",mx:6.35,src:"SPS §2.2"}}}),
- R("Civil","Floor vibration","Measured 1–150 Hz at gantry and table (critical 10–30 Hz)",{v:"Document",only:["ICT"],src:"SPS §2.1"}),
- R("Civil","Floor duct","Floor duct to gantry",{src:"Matrix C4",m:{ICT:{s:"Flush floor ducts 400 × 60 and 200 × 60, cable outlet 400 × 90, Ø60 core drill (X-1)",src:"SPD X-1"}}}),
- R("Civil","Wall ducts and opening","Surface ducts 130 × 60 and 200 × 70 + wall opening (X-3)",{only:["ICT"],src:"SPD X-3"}),
- R("Civil","Walls flat and plumb","Flat and perpendicular at mounting areas",{only:["ICT"],src:"SPS §2.4"}),
- R("Civil","Reference axes marked","Gantry axes marked on the floor per drawings",{only:["ICT"],src:"SPS §2.1"}),
+ R("Civil","Concrete base","Base for gantry and table",{src:"Matrix C3",m:{CT5300:{s:"Base plates for gantry and table (XD-1); 14 × M12 anchors, 105 mm embedment in C20/25 concrete; couch pull-out ≥ 15 kN",src:"5300 SPD XD-1, SPS §2.2.1"},ICT:{s:"Base plate provision (XD-1); gantry 8 × Hilti KB3 3/4\" (25.4 kN), table 5 × KB3 3/8\" (8.7 kN)",src:"iCT SPD XD-1, SPS §2.2.1"}}}),
+ R("Civil","Floor load capacity","Suitable for gantry and table",{v:"Document",src:"Philips SPS §2.1",m:{CT5300:{s:"Gantry 2,036 kg on 4 pads 120 × 80 mm (up to 776 kg each), table 360 kg",src:"5300 SPS §2.2.1"},ICT:{s:"Gantry 2,566 kg, table 445 kg, PDU 531 kg",src:"iCT SPS §2.2.1"}}}),
+ R("Civil","Floor levelness","Floor perfectly level",{v:"Meter",src:"Matrix C12",m:{CT5300:{s:"< 6.3 mm within the equipment area",op:"<=",mx:6.3,src:"5300 SPS §2.2"},ICT:{s:"< 6.35 mm across the equipment area",op:"<=",mx:6.35,src:"iCT SPS §2.2"}}}),
+ R("Civil","Floor vibration","Measured 1–150 Hz at gantry and table (critical 10–30 Hz)",{v:"Document",only:B2,src:"Philips SPS §2.1"}),
+ R("Civil","Floor duct","Floor duct to gantry",{src:"Matrix C4",m:{CT5300:{s:"Flush floor ducts 200 × 60 and 130 × 60 + cable outlet (X-1)",src:"5300 SPD X-1"},ICT:{s:"Flush floor ducts 400 × 60 and 200 × 60, cable outlet 400 × 90, Ø60 core drill (X-1)",src:"iCT SPD X-1"}}}),
+ R("Civil","Wall ducts and opening","Surface ducts 130 × 60 and 200 × 70 + wall opening (X-3)",{only:B2,src:"Philips SPD X-3"}),
+ R("Civil","Walls flat and plumb","Flat and perpendicular at mounting areas",{only:B2,src:"Philips SPS §2.4"}),
+ R("Civil","Reference axes marked","Gantry axes marked on the floor per drawings",{only:B2,src:"Philips SPS §2.1"}),
  R("Civil","Control desk","Installed",{src:"Matrix C8"}),
  R("Civil","Wall cladding","Installed",{src:"Matrix C9"}),
  R("Civil","Wall painting","Finished",{src:"Matrix C10"}),
@@ -298,26 +302,27 @@ const CT_REQS=[
  R("Civil","Floor tiling","Installed and perfectly level",{src:"Matrix C12"}),
  R("Civil","Floor PVC","Antistatic; NOT laid before CT installation",{src:"Matrix C13 + note"}),
  R("Civil","False ceiling","Installed",{src:"Matrix C14"}),
- R("Civil","Technical room","Room for system cabinets",{src:"Matrix C15",m:{ICT:{s:"For PDU, air compressor and UPS; free floor in front of cabinets for service",src:"SPD A-1, SPS §2.2"}}}),
- R("Civil","Drain for CT air compressor","Floor drain near the compressor",{src:"Matrix C16, SPS §4.5"}),
+ R("Civil","Technical room","Room for system cabinets",{src:"Matrix C15",m:{CT5300:{s:"Not needed for the standard CT 5300 (no PDU or compressor); only if an isolation transformer or full-system UPS is used",src:"5300 SPD A-1"},ICT:{s:"For PDU, air compressor and UPS; free floor in front of cabinets for service",src:"iCT SPD A-1, SPS §2.2"}}}),
+ R("Civil","Drain for CT air compressor","Floor drain near the compressor",{only:["","ICT"],src:"Matrix C16, iCT SPS §4.5"}),
  R("Civil","Partitioning","As per layout",{src:"Matrix C17"}),
  R("Civil","CT room resizing","If needed",{ty:"C",src:"Matrix C18"}),
  R("Civil","Control room resizing","If needed",{ty:"C",src:"Matrix C19"}),
  R("Civil","Entrance door resizing","If needed",{ty:"C",src:"Matrix C20"}),
  R("Delivery","Equipment delivery to site","Delivery and offloading",{r:E,src:"Matrix"}),
- R("Delivery","Site access","Large truck, forklift; crane if needed",{r:E,only:["ICT"],src:"SPS §1.7.2"}),
- R("Delivery","Route door width","≥ 1.05 m",{r:E,v:"Laser",op:">=",mn:1.05,only:["ICT"],src:"SPS §1.7.2"}),
- R("Delivery","Route door height","≥ 2.006 m",{r:E,v:"Laser",op:">=",mn:2.006,only:["ICT"],src:"SPS §1.7.2"}),
- R("Delivery","Corridor width","≥ 1.829 m (incl. 100 mm for wall obstacles)",{r:E,v:"Laser",op:">=",mn:1.829,only:["ICT"],src:"SPS §1.7.2"}),
- R("Delivery","Corridor width at 90° bend","≥ 2.438 m when the door is at minimum width",{r:E,v:"Laser",op:">=",mn:2.438,only:["ICT"],src:"SPS §1.7.2"}),
- R("Delivery","Elevator cage width","≥ 1.727 m (cage 1.727 × 2.756 × 2.000 m)",{r:E,v:"Laser",op:">=",mn:1.727,only:["ICT"],src:"SPS §1.7.2"}),
- R("Delivery","Elevator cage depth","≥ 2.756 m",{r:E,v:"Laser",op:">=",mn:2.756,only:["ICT"],src:"SPS §1.7.2"}),
- R("Delivery","Route floor and elevator load","Heaviest package 3,378 kg + transport tools; longest 3.162 m",{r:E,only:["ICT"],src:"SPS §1.7.2"}),
- R("General","Site ready before delivery","Finished, clean, dry, lockable, clear of contractors",{src:"SPS §1.5"})
+ R("Delivery","Site access","Large truck, forklift; crane if needed",{r:E,only:B2,src:"Philips SPS §1.7.2"}),
+ R("Delivery","Route door width","Per vendor",{r:E,v:"Laser",op:">=",only:B2,src:"Philips SPS §1.7.2",m:{CT5300:{s:"≥ 0.986 m",mn:.986,src:"5300 SPS §1.7.2"},ICT:{s:"≥ 1.05 m",mn:1.05,src:"iCT SPS §1.7.2"}}}),
+ R("Delivery","Route door height","Per vendor",{r:E,v:"Laser",op:">=",only:B2,src:"Philips SPS §1.7.2",m:{CT5300:{s:"≥ 2.00 m",mn:2.0,src:"5300 SPS §1.7.2"},ICT:{s:"≥ 2.006 m",mn:2.006,src:"iCT SPS §1.7.2"}}}),
+ R("Delivery","Corridor width","Per vendor",{r:E,v:"Laser",op:">=",only:B2,src:"Philips SPS §1.7.2",m:{CT5300:{s:"≥ 0.986 m",mn:.986,src:"5300 SPS §1.7.2"},ICT:{s:"≥ 1.829 m (incl. 100 mm for wall obstacles)",mn:1.829,src:"iCT SPS §1.7.2"}}}),
+ R("Delivery","Corridor width at 90° bend","Per vendor",{r:E,v:"Laser",op:">=",only:B2,src:"Philips SPS §1.7.2",m:{CT5300:{s:"≥ 2.77 m when the corridor is 0.986 m",mn:2.77,src:"5300 SPS §1.7.2"},ICT:{s:"≥ 2.438 m when the door is at minimum width",mn:2.438,src:"iCT SPS §1.7.2"}}}),
+ R("Delivery","Elevator cage width","Per vendor",{r:E,v:"Laser",op:">=",only:B2,src:"Philips SPS §1.7.2",m:{CT5300:{s:"≥ 1.829 m (cage 1.829 × 2.910 × 2.058 m)",mn:1.829,src:"5300 SPS §1.7.2"},ICT:{s:"≥ 1.727 m (cage 1.727 × 2.756 × 2.000 m)",mn:1.727,src:"iCT SPS §1.7.2"}}}),
+ R("Delivery","Elevator cage depth","Per vendor",{r:E,v:"Laser",op:">=",only:B2,src:"Philips SPS §1.7.2",m:{CT5300:{s:"≥ 2.910 m",mn:2.91,src:"5300 SPS §1.7.2"},ICT:{s:"≥ 2.756 m",mn:2.756,src:"iCT SPS §1.7.2"}}}),
+ R("Delivery","Route floor and elevator load","Suitable for the heaviest package and transport tools",{r:E,only:B2,src:"Philips SPS §1.7.2",m:{CT5300:{s:"Heaviest package 2,316 kg (gantry); longest 2.805 m (3.053 m on dollies)",src:"5300 SPS §1.7.2"},ICT:{s:"Heaviest package 3,378 kg + transport tools; longest 3.162 m",src:"iCT SPS §1.7.2"}}}),
+ R("Delivery","Unpacking and storage","Acclimatise 24 h before unpacking; storage −15 to +45 °C, 20–80 % RH",{r:E,ty:"C",only:["CT5300"],src:"5300 SPS §1.7.3"}),
+ R("General","Site ready before delivery","Finished, clean, dry, lockable, clear of contractors",{src:"Philips SPS §1.5"})
 ];
 const legacy=(rows)=>rows.map(r=>({c:r[0],t:r[1],s:r[2],ty:r[3],r:r[4]==="MOH"?C:r[4],v:r[5],op:r[6]||"",mn:r[7],mx:r[8],ln:r[9]||"",src:"Example"}));
 const DEFAULT_LIB = {
-  "CT":{name:"CT Scanner",foot:[2.6,3.8],models:{"":"CT 5300 (Experia matrix)",ICT:"Philips iCT (JO-24-00007)"},mfoot:{ICT:[2.75,3.8]},reqs:CT_REQS},
+  "CT":{name:"CT Scanner",foot:[2.6,3.8],models:{CT5300:"CT 5300",ICT:"Philips iCT","":"Other CT model (general)"},mfoot:{CT5300:[2.35,3.6],ICT:[2.75,3.8]},reqs:CT_REQS},
   "MRI":{name:"MRI 1.5T",foot:[2.3,6.5],example:true,reqs:legacy([
     ["Room","Magnet room floor area","≥ 35 m²","M",C,"Laser",">=",35,"","area"],["Room","Clear ceiling height","≥ 2.80 m","M",C,"Laser",">=",2.80,"","ceiling"],
     ["Room","Delivery route width","≥ 2.00 m","M",C,"Laser",">=",2.00,"","door"],["Structure","Floor load","≥ 4,500 kg magnet footprint","M",C,"Document"],
@@ -522,9 +527,9 @@ function vSite(){
   <h2 style="margin-bottom:10px">Equipment</h2>
   <div class="devices">${Object.entries(LIB).map(([k,d])=>`<button class="dev" data-dev="${esc(k)}" aria-pressed="${s.devices.includes(k)}"><b>${esc(d.name)}</b><span class="count">${d.reqs.length} requirements${Object.keys(d.models).length>1?" · "+Object.keys(d.models).length+" models":""}</span>${d.example?'<span class="example" style="margin:0;align-self:flex-start">Example values</span>':""}</button>`).join("")}</div>
   ${s.devices.length?`<div class="models">${s.devices.map(d=>{const L=LIB[d];if(!L)return "";const mk=s.mkey[d]||"";return `<div class="card" style="padding:12px"><b>${esc(L.name)}</b>
-    <label class="hint" style="display:block;margin-top:6px">Requirement profile<br><select data-mkey="${esc(d)}" style="width:100%">${Object.entries(L.models).map(([k,n])=>`<option value="${esc(k)}" ${k===mk?"selected":""}>${esc(n)}</option>`).join("")}</select></label>
+    <label class="hint" style="display:block;margin-top:6px">Model<br><select data-mkey="${esc(d)}" style="width:100%">${Object.entries(L.models).map(([k,n])=>`<option value="${esc(k)}" ${k===mk?"selected":""}>${esc(n)}</option>`).join("")}</select></label>
     <label class="hint" style="display:block;margin-top:6px">Model / serial (for the report)<br><input type="text" data-model="${esc(d)}" value="${esc(s.models[d]||"")}" placeholder="Manufacturer and model" style="width:100%"></label>
-    <div class="hint" style="margin-top:6px">${devReqs(s,d).length} requirements for this profile</div></div>`}).join("")}</div>`:""}
+    <div class="hint" style="margin-top:6px">${devReqs(s,d).length} requirements for this model</div></div>`}).join("")}</div>`:""}
   <div class="row"><button class="btn primary" data-go="1">Continue to requirements →</button>
   <span style="flex:1"></span><button class="btn small" id="dupsite">Duplicate site</button><button class="btn small warn" id="delsite">Delete site</button></div>`;
 }
@@ -847,15 +852,16 @@ function nextVisit(){const s=site();const n=JSON.parse(JSON.stringify(s));n.id="
 const LIBHEAD=["Device","Model","Category","Requirement","Spec","Type","Responsibility","Verify","Rule","Min","Max","Link","Source"];
 function libRows(){const out=[];
   Object.entries(LIB).forEach(([k,d])=>{
-    d.reqs.filter(r=>!r.only).forEach(r=>out.push([d.name,"",r.cat,r.text,r.spec,r.type,r.resp,r.verify,r.op,r.min??"",r.max??"",r.link,r.src]));
-    Object.entries(d.models).filter(([mk])=>mk).forEach(([mk,mn])=>d.reqs.forEach(r=>{
-      if(r.only&&r.only.includes(mk))out.push([d.name,mn,r.cat,r.text,r.spec,r.type,r.resp,r.verify,r.op,r.min??"",r.max??"",r.link,r.src]);
-      else if(!r.only&&r.m[mk]){const o=r.m[mk];out.push([d.name,mn,r.cat,r.text,o.s??r.spec,r.type,r.resp,r.verify,o.op??r.op,o.mn??r.min??"",o.mx??r.max??"",r.link,o.src??r.src])}}))});
+    const row=(mn,r,o={})=>[d.name,mn,r.cat,r.text,o.s??r.spec,r.type,r.resp,r.verify,o.op??r.op,o.mn??r.min??"",o.mx??r.max??"",r.link,o.src??r.src];
+    d.reqs.filter(r=>!r.only).forEach(r=>out.push(row("",r)));
+    Object.entries(d.models).forEach(([mk,mn])=>d.reqs.forEach(r=>{
+      if(r.only&&r.only.includes(mk))out.push(row(mn,r,r.m[mk]||{}));
+      else if(!r.only&&mk&&r.m[mk])out.push(row(mn,r,r.m[mk]))}))});
   return out}
 function vLibrary(){
   const tsv=[LIBHEAD.join("\t")].concat(libRows().map(r=>r.map(c=>String(c??"").replace(/[\t\n]/g," ")).join("\t"))).join("\n");
   return `<div class="eyebrow">Master library</div><h1>Requirements library</h1>
-  <p class="lede">CT is built from your responsibility matrix (CT 5300) and the Philips iCT site preparation package JO-24-00007. MRI, Cath Lab and X-ray still hold example values. Keep the library in Excel with the columns below, then copy all rows (with the header) and paste them here.</p>
+  <p class="lede">CT is built from your responsibility matrix plus the Philips site preparation packages for the CT 5300 (JO-25-00009) and the iCT (JO-24-00007). MRI, Cath Lab and X-ray still hold example values. Keep the library in Excel with the columns below, then copy all rows (with the header) and paste them here.</p>
   <div class="card" style="margin-bottom:14px"><h2 style="margin-bottom:8px">Column guide</h2><div class="tablewrap"><table><tbody>
     <tr><td><b>Model</b></td><td>Leave empty for rows that apply to every model. Put a model name to add a requirement for that model only, or to override the Spec / Rule of a row with the same Requirement text.</td></tr>
     <tr><td><b>Type</b></td><td>M = Mandatory, C = Conditional, O = Optional</td></tr>
@@ -874,16 +880,18 @@ function importLib(text){
   if(ix("device")<0||ix("requirement")<0)throw new Error("The header needs at least Device and Requirement columns");
   const raw={},rows=lines.slice(1).map(c=>{const g=n=>(ix(n)>=0?(c[ix(n)]||"").trim():"");return g}).filter(g=>g("device")&&g("requirement"));
   const devKey=n=>{const hit=Object.entries(LIB).find(([k,d])=>d.name.toLowerCase()===n.toLowerCase());return hit?hit[0]:n.toUpperCase().replace(/[^A-Z0-9]+/g,"_")};
-  const modelKey=(dk,n)=>{if(!n)return "";const L=LIB[dk];const hit=L&&Object.entries(L.models).find(([k,v])=>v.toLowerCase()===n.toLowerCase());return hit?hit[0]:n.toUpperCase().replace(/[^A-Z0-9]+/g,"_")};
+  const modelKey=(dk,n)=>{if(!n)return null;const L=LIB[dk];const hit=L&&Object.entries(L.models).find(([k,v])=>v.toLowerCase()===n.toLowerCase());return hit?hit[0]:n.toUpperCase().replace(/[^A-Z0-9]+/g,"_")};
   const respOf=v=>{v=(v||"").toLowerCase();return v.startsWith("exp")?E:v.startsWith("ven")||v.startsWith("sup")||v.startsWith("phil")?V:C};
   const obj=g=>({c:g("category")||"Other",t:g("requirement"),s:g("spec"),ty:(g("type")||"M").toUpperCase().slice(0,1),r:respOf(g("responsibility")),v:g("verify")||"Visual",op:g("rule"),mn:g("min"),mx:g("max"),ln:g("link").toLowerCase(),src:g("source")});
-  [false,true].forEach(pass=>rows.forEach(g=>{const dn=g("device"),dk=devKey(dn),mn=g("model"),mk=modelKey(dk,mn);if(!!mk!==pass)return;
-    const old=LIB[dk];raw[dk]=raw[dk]||{name:dn,foot:old?old.foot:[2,4],mfoot:old?old.mfoot:{},models:{"":old?(old.models[""]||"Standard"):"Standard"},reqs:[]};
+  [false,true].forEach(pass=>rows.forEach(g=>{const dn=g("device"),dk=devKey(dn),mn=g("model"),mk=modelKey(dk,mn);if((mk!==null)!==pass)return;
+    const old=LIB[dk];raw[dk]=raw[dk]||{name:dn,foot:old?old.foot:[2,4],mfoot:old?old.mfoot:{},models:{},reqs:[]};
     const D=raw[dk],o=obj(g);
-    if(!mk){D.reqs.push(o);return}
-    D.models[mk]=mn;const gen=D.reqs.find(r=>r.t===o.t&&!r.only);
-    if(gen){gen.m=gen.m||{};gen.m[mk]={s:o.s,op:o.op,mn:o.mn,mx:o.mx,src:o.src}}
-    else{const ex=D.reqs.find(r=>r.t===o.t&&r.only);if(ex)ex.only.push(mk);else D.reqs.push({...o,only:[mk]})}}));
+    if(mk===null){D.reqs.push(o);return}
+    D.models[mk]=mn;const ov={s:o.s,op:o.op,mn:o.mn,mx:o.mx,src:o.src};
+    const gen=D.reqs.find(r=>r.t===o.t&&!r.only);
+    if(gen){gen.m=gen.m||{};gen.m[mk]=ov}
+    else{const ex=D.reqs.find(r=>r.t===o.t&&r.only);if(ex){ex.only.push(mk);ex.m=ex.m||{};ex.m[mk]=ov}else D.reqs.push({...o,only:[mk],m:{[mk]:ov}})}}));
+  Object.values(raw).forEach(D=>{if(!Object.keys(D.models).length)D.models={"":"Standard"};else if(!("" in D.models)&&D.reqs.some(r=>!r.only))D.models[""]="Other model (general)"});
   if(!Object.keys(raw).length)throw new Error("No requirement rows found");return raw;
 }
 function empty(t,d,step){return `<div class="card"><h2>${t}</h2><p class="lede" style="margin:6px 0 14px">${d}</p><button class="btn primary" data-go="${step}">Go to step ${step+1}</button></div>`}
@@ -938,7 +946,7 @@ function copyText(el){const t=el.textContent;(navigator.clipboard?navigator.clip
 $("#main").addEventListener("click",async e=>{
   const t=e.target.closest("button,img[data-view]");if(!t)return;const s=site(),d=t.dataset;
   if(d.go){go(+d.go);return}
-  if(d.dev){s.devices=s.devices.includes(d.dev)?s.devices.filter(x=>x!==d.dev):[...s.devices,d.dev];save();render();return}
+  if(d.dev){if(s.devices.includes(d.dev))s.devices=s.devices.filter(x=>x!==d.dev);else{s.devices=[...s.devices,d.dev];if(s.mkey[d.dev]===undefined&&LIB[d.dev])s.mkey[d.dev]=Object.keys(LIB[d.dev].models)[0]}save();render();return}
   if(d.sel){s.sel[d.sel]=d.v;save();const y=scrollY;render();scrollTo(0,y);return}
   if(d.resp){s.resp[d.resp]=d.v;save();const y=scrollY;render();scrollTo(0,y);return}
   if(d.allresp!==undefined){s.devices.forEach(dv=>devReqs(s,dv).forEach(r=>{if(d.allresp)s.resp[r.id]=d.allresp;else delete s.resp[r.id]}));s.extras.forEach(x=>{if(d.allresp)s.resp[x.id]=d.allresp});save();render();toast(d.allresp?"All items set to "+d.allresp:"Standard owners restored");return}
@@ -961,7 +969,7 @@ $("#main").addEventListener("input",e=>{const t=e.target,s=site();
   if(t.dataset.com){sv(s,t.dataset.com).comment=t.value;save()}
 });
 $("#main").addEventListener("change",async e=>{const t=e.target,s=site();
-  if(t.dataset.mkey){s.mkey[t.dataset.mkey]=t.value;save();render();toast("Requirement profile: "+t.options[t.selectedIndex].text);return}
+  if(t.dataset.mkey){s.mkey[t.dataset.mkey]=t.value;save();render();toast("Model: "+t.options[t.selectedIndex].text);return}
   if(t.dataset.respsel){s.resp[t.dataset.respsel]=t.value;save();const y=scrollY;render();scrollTo(0,y);toast("Owner changed to "+t.value);return}
   if(t.dataset.meas){const r=applicable(s).find(x=>x.id===t.dataset.meas);setMeasured(s,r,t.value.trim(),true);save();const y=scrollY;render();scrollTo(0,y)}
   if(t.dataset.wlen!==undefined){const v=num(t.value);if(v&&v>0.05){s.plan.walls[+t.dataset.wlen].len=v;const pts=planPts(s.plan),e2=pts[pts.length-1];if(s.plan.closed)s.plan.gap=Math.hypot(e2[0],e2[1]);save();render()}}
