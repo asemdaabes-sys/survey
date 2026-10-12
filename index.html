@@ -239,7 +239,7 @@ const R=(c,t,s,o={})=>({c,t,s,ty:"M",r:C,v:"Visual",...o});
 /* CT — general rows = Experia "Site Requirements and Responsibility Matrix" (Matrix) + common Philips site-prep rules.
    CT5300 = Philips CT 5300 site preparation package JO-25-00009 Rev A (5300 SPS / 5300 SPD).
    ICT    = Philips iCT site preparation package JO-24-00007 Rev A (iCT SPS / iCT SPD).
-   "only" limits a row to the listed profiles ("" = Other CT model); "m" overrides spec/rule per model. */
+   "only" limits a row to the listed profiles ("" = General); "m" overrides spec/rule per model. */
 const B2=["CT5300","ICT"];
 const CT_REQS=[
  R("Electrical","Main power cable","3-phase, 5-wire (L1, L2, L3, N, PE), 380/400 VAC",{src:"Matrix E1",m:{CT5300:{s:"3-phase wye, 5-wire (L1, L2, L3, N, PE) to gantry, 380/400/415 VAC; or 3-phase delta 4-wire to isolation transformer",src:"5300 SPS §3.2.2"},ICT:{s:"3-phase wye: L1, L2, L3 + PE1 + PE2 to PDU, 380/400/415/480 VAC",src:"iCT SPS §3.2.2"}}}),
@@ -259,11 +259,10 @@ const CT_REQS=[
  R("Electrical","Door interlock contacts","Per drawings, cable routed to gantry",{ty:"C",only:B2,src:"Philips SPS (safety)"}),
  R("Electrical","Power outlets in exam room","Single-phase 220 V",{src:"Matrix E4",m:{CT5300:{s:"2 × dedicated single-phase outlets (X-3 item 4)",src:"5300 SPD X-3"},ICT:{s:"2 × dedicated single-phase outlets (X-3 item 4)",src:"iCT SPD X-3"}}}),
  R("Electrical","Power outlets under control desk","4 × single-phase 220 V",{src:"Matrix E6"}),
- R("Electrical","Lighting","Room lighting installed",{src:"Matrix E8",m:{CT5300:{s:"Min. 500 lux operation (adjustable), 500 lux service; fixtures clear of equipment",src:"5300 SPS §3.2.7"},ICT:{s:"50–100 lux operation (dimmable), 500 lux service; fixtures clear of equipment",src:"iCT SPS §3.2.6"}}}),
- R("Electrical","Service lighting level","≥ 500 lux on the floor",{v:"Meter",op:">=",mn:500,only:B2,src:"Philips SPS (lighting)"}),
- R("Network","Data outlets in exam room","Data outlets installed",{src:"Matrix E5",m:{CT5300:{s:"Network connection 1 Gb RJ45 (X-3 item 5)",src:"5300 SPD X-3"},ICT:{s:"Network connection 1 Gb RJ45 (X-3 item 5)",src:"iCT SPD X-3"}}}),
+ R("Electrical","Lighting","Room lighting installed",{v:"Meter",src:"Matrix E8",m:{CT5300:{s:"≥ 500 lux on the floor (operation and service); fixtures clear of equipment",op:">=",mn:500,src:"5300 SPS §3.2.7"},ICT:{s:"50–100 lux operation (dimmable), ≥ 500 lux service on the floor; fixtures clear of equipment",op:">=",mn:500,src:"iCT SPS §3.2.6"}}}),
+ R("Network","Data outlets in exam room","Data outlets installed",{src:"Matrix E5"}),
  R("Network","Data outlets under control desk","2 × data outlets",{src:"Matrix E7"}),
- R("Network","Remote service connection","RJ45 with hospital network / internet, IP addresses allocated",{src:"Philips SPS (networking)",m:{CT5300:{s:"RJ45 10/100/1000 Mbps with hospital network / internet, IP addresses allocated",src:"5300 SPD A-1, SPS §3.5"},ICT:{s:"RJ45 1000 Mbps with hospital network / internet, IP addresses allocated",src:"iCT SPD A-1, SPS §3.4"}}}),
+ R("Network","Remote service connection","RJ45 with hospital network / internet, IP addresses allocated",{src:"Philips SPS (networking)",m:{CT5300:{s:"1 Gb RJ45 (X-3 item 5) with hospital network / internet, IP addresses allocated",src:"5300 SPD A-1, X-3, SPS §3.5"},ICT:{s:"1 Gb RJ45 (X-3 item 5) with hospital network / internet, IP addresses allocated",src:"iCT SPD A-1, X-3, SPS §3.4"}}}),
  R("Mechanical","AC – CT exam room","4 Ton (2 × 2 Ton split units)",{src:"Matrix M1"}),
  R("Mechanical","Heat load – exam room","Equipment ≈ 5 kW + room volume and people",{v:"Document",src:"Matrix note",m:{CT5300:{s:"Gantry 5.0 kW scanning (1.5 kW standby) + room volume and people; ideal room 22 °C",src:"5300 SPS §4.2"},ICT:{s:"Gantry 9.63 kW + room volume and people",src:"iCT SPS §4.2"}}}),
  R("Mechanical","AC vent position","No supply vents directly above the gantry or patient table",{only:["CT5300"],src:"5300 SPS §4.2"}),
@@ -299,11 +298,11 @@ const CT_REQS=[
  R("Civil","Wall cladding","Installed",{src:"Matrix C9"}),
  R("Civil","Wall painting","Finished",{src:"Matrix C10"}),
  R("Civil","Furniture","Installed",{src:"Matrix C11"}),
- R("Civil","Floor tiling","Installed and perfectly level",{src:"Matrix C12"}),
+ R("Civil","Floor tiling","Installed (levelness checked separately)",{src:"Matrix C12"}),
  R("Civil","Floor PVC","Antistatic; NOT laid before CT installation",{src:"Matrix C13 + note"}),
  R("Civil","False ceiling","Installed",{src:"Matrix C14"}),
  R("Civil","Technical room","Room for system cabinets",{src:"Matrix C15",m:{CT5300:{s:"Not needed for the standard CT 5300 (no PDU or compressor); only if an isolation transformer or full-system UPS is used",src:"5300 SPD A-1"},ICT:{s:"For PDU, air compressor and UPS; free floor in front of cabinets for service",src:"iCT SPD A-1, SPS §2.2"}}}),
- R("Civil","Drain for CT air compressor","Floor drain near the compressor",{only:["","ICT"],src:"Matrix C16, iCT SPS §4.5"}),
+ R("Civil","Drain for CT air compressor","Floor drain near the compressor",{only:["ICT"],src:"Matrix C16, iCT SPS §4.5"}),
  R("Civil","Partitioning","As per layout",{src:"Matrix C17"}),
  R("Civil","CT room resizing","If needed",{ty:"C",src:"Matrix C18"}),
  R("Civil","Control room resizing","If needed",{ty:"C",src:"Matrix C19"}),
@@ -322,7 +321,7 @@ const CT_REQS=[
 ];
 const legacy=(rows)=>rows.map(r=>({c:r[0],t:r[1],s:r[2],ty:r[3],r:r[4]==="MOH"?C:r[4],v:r[5],op:r[6]||"",mn:r[7],mx:r[8],ln:r[9]||"",src:"Example"}));
 const DEFAULT_LIB = {
-  "CT":{name:"CT Scanner",foot:[2.6,3.8],models:{CT5300:"CT 5300",ICT:"Philips iCT","":"Other CT model (general)"},mfoot:{CT5300:[2.35,3.6],ICT:[2.75,3.8]},reqs:CT_REQS},
+  "CT":{name:"CT Scanner",foot:[2.6,3.8],models:{CT5300:"CT 5300",ICT:"Philips iCT","":"General (all models)"},mfoot:{CT5300:[2.35,3.6],ICT:[2.75,3.8]},reqs:CT_REQS},
   "MRI":{name:"MRI 1.5T",foot:[2.3,6.5],example:true,reqs:legacy([
     ["Room","Magnet room floor area","≥ 35 m²","M",C,"Laser",">=",35,"","area"],["Room","Clear ceiling height","≥ 2.80 m","M",C,"Laser",">=",2.80,"","ceiling"],
     ["Room","Delivery route width","≥ 2.00 m","M",C,"Laser",">=",2.00,"","door"],["Structure","Floor load","≥ 4,500 kg magnet footprint","M",C,"Document"],
@@ -399,7 +398,20 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const f2=v=>(Math.round(v*100)/100).toFixed(2);
 function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),2200)}
 /* requirements for one device at this site, resolved for the chosen model (ignores Keep/Drop) */
+/* "General" profile: every requirement of every model, one row each; differing values are listed per model
+   and the automatic pass/fail uses the strictest limit, so a site that passes General suits any model. */
+function mergedReq(L,r){
+  const vars=[];
+  Object.keys(L.models).filter(k=>k).forEach(mk=>{if(r.only&&!r.only.includes(mk))return;const o=r.m[mk]||{};
+    vars.push({name:L.models[mk],s:o.s??r.spec,op:o.op??r.op,mn:o.mn!==undefined?num(o.mn):r.min,mx:o.mx!==undefined?num(o.mx):r.max,src:o.src??r.src})});
+  if(!vars.length)vars.push({name:"",s:r.spec,op:r.op,mn:r.min,mx:r.max,src:r.src});
+  const specs=[...new Set(vars.map(v=>v.s))],multi=specs.length>1;
+  const ops=[...new Set(vars.map(v=>v.op).filter(Boolean))];let op="",mn=null,mx=null;
+  if(ops.length===1){op=ops[0];const a=vars.map(v=>v.mn).filter(x=>x!=null),b=vars.map(v=>v.mx).filter(x=>x!=null);mn=a.length?Math.max(...a):null;mx=b.length?Math.min(...b):null}
+  return {spec:multi?vars.map(v=>v.name+": "+v.s).join("  |  "):specs[0],op,min:mn,max:mx,src:[...new Set(vars.map(v=>v.src).filter(Boolean))].join("; "),multi};
+}
 function devReqs(s,d){const L=LIB[d];if(!L)return[];const mk=(s.mkey||{})[d]||"";
+  if(mk===""&&Object.keys(L.models).some(k=>k))return L.reqs.map(r=>{const g=mergedReq(L,r);return {...r,...g,strictest:g.multi&&!!g.op,modelSpecific:!!(r.only&&r.only.length<Object.keys(L.models).filter(k=>k).length),resp:(s.resp||{})[r.id]||r.resp,defResp:r.resp,device:d}});
   return L.reqs.filter(r=>!r.only||r.only.includes(mk)).map(r=>{const o=r.m[mk]||{};
     return {...r,spec:o.s??r.spec,op:o.op??r.op,min:o.mn!==undefined?num(o.mn):r.min,max:o.mx!==undefined?num(o.mx):r.max,src:o.src??r.src,modelSpecific:!!(r.only||r.m[mk]),resp:(s.resp||{})[r.id]||r.resp,defResp:r.resp,device:d}})}
 function applicable(s=site()){
@@ -542,7 +554,7 @@ function vReqs(){
     h+=`<section class="group"><header><h2>${esc(dev.name)} · ${esc(dev.models[s.mkey[d]||""]||"")}</h2><span class="meta mono">${kept}/${list.length} kept · ${s.extras.filter(x=>x.device===d).length} extra</span></header>`;
     [...new Set(list.map(r=>r.cat))].sort((a,b)=>(CATS.indexOf(a)+1||99)-(CATS.indexOf(b)+1||99)).forEach(c=>{h+=`<div class="cathead eyebrow">${esc(c)}</div>`;
       list.filter(r=>r.cat===c).forEach(r=>{const v=s.sel[r.id]||"req";
-        h+=`<div class="req ${v==="na"?"off":""}"><div class="txt"><b>${esc(r.text)}</b><span class="spec">${esc(r.spec)}</span><div class="tags"><span class="tag ${r.type==="M"?"mand":""}">${TYPE[r.type]||r.type}</span><span class="tag">${esc(r.verify)}</span>${r.src?`<span class="tag">${esc(r.src)}</span>`:""}${r.modelSpecific?'<span class="tag extra">Model specific</span>':""}${r.op?'<span class="tag auto">Auto pass/fail</span>':""}${r.link?`<span class="tag auto">From room plan</span>`:""}</div></div>
+        h+=`<div class="req ${v==="na"?"off":""}"><div class="txt"><b>${esc(r.text)}</b><span class="spec">${esc(r.spec)}</span><div class="tags"><span class="tag ${r.type==="M"?"mand":""}">${TYPE[r.type]||r.type}</span><span class="tag">${esc(r.verify)}</span>${r.src?`<span class="tag">${esc(r.src)}</span>`:""}${r.strictest?'<span class="tag extra">Strictest limit of all models</span>':r.modelSpecific?'<span class="tag extra">Model specific</span>':""}${r.op?'<span class="tag auto">Auto pass/fail</span>':""}${r.link?`<span class="tag auto">From room plan</span>`:""}</div></div>
         <div class="seg"><button data-sel="${r.id}" data-v="req" class="${v==="req"?"on-req":""}">Required</button><button data-sel="${r.id}" data-v="na" class="${v==="na"?"on-na":""}">Not needed</button></div>
         <div class="respline">${respSeg(r.id,r.resp,r.defResp)}</div></div>`})});
     s.extras.filter(x=>x.device===d).forEach(x=>{const cur=s.resp[x.id]||x.resp||C;h+=`<div class="req"><div class="txt"><b>${esc(x.text)}</b><span class="spec">${esc(x.spec)}</span><div class="tags"><span class="tag extra">Site extra</span><span class="tag">${esc(x.cat)}</span></div></div><button class="btn small" data-delx="${x.id}">Remove</button><div class="respline">${respSeg(x.id,cur,cur)}</div></div>`});
@@ -891,7 +903,7 @@ function importLib(text){
     const gen=D.reqs.find(r=>r.t===o.t&&!r.only);
     if(gen){gen.m=gen.m||{};gen.m[mk]=ov}
     else{const ex=D.reqs.find(r=>r.t===o.t&&r.only);if(ex){ex.only.push(mk);ex.m=ex.m||{};ex.m[mk]=ov}else D.reqs.push({...o,only:[mk],m:{[mk]:ov}})}}));
-  Object.values(raw).forEach(D=>{if(!Object.keys(D.models).length)D.models={"":"Standard"};else if(!("" in D.models)&&D.reqs.some(r=>!r.only))D.models[""]="Other model (general)"});
+  Object.values(raw).forEach(D=>{if(!Object.keys(D.models).length)D.models={"":"Standard"};else if(!("" in D.models)&&D.reqs.some(r=>!r.only))D.models[""]="General (all models)"});
   if(!Object.keys(raw).length)throw new Error("No requirement rows found");return raw;
 }
 function empty(t,d,step){return `<div class="card"><h2>${t}</h2><p class="lede" style="margin:6px 0 14px">${d}</p><button class="btn primary" data-go="${step}">Go to step ${step+1}</button></div>`}
