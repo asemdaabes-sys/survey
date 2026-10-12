@@ -102,10 +102,14 @@ h2{font-family:var(--f-display);font-weight:700;font-size:16px;margin:0}
 .tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
 .tag.mand{border-color:var(--accent);color:var(--accent)}
 .tag.extra{border-color:var(--signal);color:var(--signal)}
+.ownersel{display:inline-flex;gap:4px;align-items:center;border-color:var(--accent);color:var(--accent)}
+.ownersel select{border:0;background:transparent;padding:0 2px;font-size:12px;font-weight:600;color:var(--accent)}
 .tag.auto{border-color:var(--ok);color:var(--ok)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-shrink:0}
 .seg button{border:0;background:var(--panel);padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
 .seg button+button{border-left:1px solid var(--line)}
+.respline{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg.resp button{padding:6px 10px;font-size:12.5px}
 .seg .on-req{background:var(--accent-soft);color:var(--accent)}
 .seg .on-ok{background:var(--ok-soft);color:var(--ok)}
 .seg .on-bad{background:var(--bad-soft);color:var(--bad)}
@@ -158,6 +162,7 @@ canvas#plan{display:block;width:100%;touch-action:none}
 .cols{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
 .tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
+.matrix td.ck,.matrix th.ck{text-align:center;width:72px;font-weight:700;color:var(--accent);font-size:16px}
 th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
 th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;background:var(--bg)}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
@@ -229,98 +234,147 @@ pre.csv{background:var(--bg);border:1px solid var(--line);border-radius:8px;padd
    Columns: Category, Requirement, Spec, Type(M/C/O), Responsibility,
             Verify(Laser/Meter/Visual/Document), Rule(>=,<=,range), Min, Max, Link(area/ceiling/door)
    ===================================================================== */
+const C="Customer",E="Experia",V="Vendor",RESP=[C,E,V];
+const R=(c,t,s,o={})=>({c,t,s,ty:"M",r:C,v:"Visual",...o});
+/* CT — built from Experia "Site Requirements and Responsibility Matrix – CT 5300" (Matrix)
+   plus Philips iCT site preparation package JO-24-00007 Rev A (SPS = specifications, SPD = drawings).
+   Generic rows apply to every CT model; "only" rows and "m" overrides apply to the named model. */
+const CT_REQS=[
+ R("Electrical","Main power cable","3-phase, 5-wire (L1, L2, L3, N, PE), 380/400 VAC",{src:"Matrix E1",m:{ICT:{s:"3-phase wye: L1, L2, L3 + PE1 + PE2 to PDU, 380/400/415/480 VAC",src:"SPS §3.2.2"}}}),
+ R("Electrical","Supply voltage (L-L, measured)","380/400 VAC ± 10 %",{v:"Meter",op:"range",mn:342,mx:440,src:"SPS §3.2.3"}),
+ R("Electrical","Power capacity","115 kVA",{v:"Document",src:"Matrix E1",m:{ICT:{s:"175 kVA momentary (5 s), 25 kVA steady; 225 kVA isolation transformer if a separate source is needed",src:"SPS §3.2.3"}}}),
+ R("Electrical","Power box / main breaker","MCCB 125 A + earth busbar + neutral busbar",{src:"Matrix E2",m:{ICT:{s:"Room safety disconnect 200 A @ 380/400/415 V, Class B slow-trip, lockable",src:"SPS §3.2.3, Annex"}}}),
+ R("Electrical","Earth-leakage breaker (RCD)","30 mA, 200 A, Type B, 70 mm² terminals, if local code requires",{ty:"C",only:["ICT"],src:"SPS §3.2.4"}),
+ R("Electrical","Earthing","One earth reference terminal with removable link; earth resistance < 5 Ω (ideal ≤ 2 Ω)",{v:"Meter",op:"<=",mx:5,src:"SPS §3.2.5"}),
+ R("Electrical","Mains resistance (L-L)","≤ 105 mΩ at 400 V (100 at 380 V, 109 at 415 V)",{v:"Meter",op:"<=",mx:105,only:["ICT"],src:"SPS §3.2.3"}),
+ R("Electrical","Phase imbalance","≤ 3 %",{v:"Meter",op:"<=",mx:3,only:["ICT"],src:"SPS §3.2.3"}),
+ R("Electrical","Voltage distortion (THDv)","≤ 8 %",{v:"Meter",op:"<=",mx:8,only:["ICT"],src:"SPS §3.2.3"}),
+ R("Electrical","Mains switch","Control room wall, per wall provisions drawing",{only:["ICT"],src:"SPD A-1 4.1, X-3"}),
+ R("Electrical","Terminal junction box","Above PDU; Philips cable to PDU ≤ 1.5 m",{only:["ICT"],src:"SPD A-1 3.4, X-3"}),
+ R("Electrical","Emergency power OFF switch","Control room; latching mushroom button, N.O. contact to PDU shunt trip",{only:["ICT"],src:"SPD A-1 4.3, SPS Annex"}),
+ R("Electrical","X-ray ON warning light","Above entrance door, per drawings",{src:"Matrix E3",m:{ICT:{s:"Above entrance door; relay max 6 A / 230 V, lamp response 1–1000 ms, cable to gantry",src:"SPS §3.2.7"}}}),
+ R("Electrical","Door interlock contacts","Per drawings, cable routed to gantry",{ty:"C",only:["ICT"],src:"SPS §3.2.7"}),
+ R("Electrical","Power outlets in exam room","Single-phase 220 V",{src:"Matrix E4",m:{ICT:{s:"2 × dedicated single-phase outlets (X-3 item 4)",src:"SPD X-3"}}}),
+ R("Electrical","Power outlets under control desk","4 × single-phase 220 V",{src:"Matrix E6"}),
+ R("Electrical","Lighting","Room lighting installed",{src:"Matrix E8",m:{ICT:{s:"50–100 lux operation (dimmable), 500 lux service; fixtures clear of equipment",src:"SPS §3.2.6"}}}),
+ R("Electrical","Service lighting level","≥ 500 lux on the floor",{v:"Meter",op:">=",mn:500,only:["ICT"],src:"SPS §3.2.6"}),
+ R("Network","Data outlets in exam room","Data outlets installed",{src:"Matrix E5",m:{ICT:{s:"Network connection 1 Gb RJ45 (X-3 item 5)",src:"SPD X-3"}}}),
+ R("Network","Data outlets under control desk","2 × data outlets",{src:"Matrix E7"}),
+ R("Network","Remote service connection","RJ45 with hospital network / internet (1000 Mbps), IP addresses allocated",{src:"SPD A-1, SPS §3.4"}),
+ R("Mechanical","AC – CT exam room","4 Ton (2 × 2 Ton split units)",{src:"Matrix M1"}),
+ R("Mechanical","Heat load – exam room","Equipment ≈ 5 kW + room volume and people",{v:"Document",src:"Matrix comment",m:{ICT:{s:"Gantry 9.63 kW + room volume and people",src:"SPS §4.2"}}}),
+ R("Mechanical","AC – control room","1.5 Ton × 1",{src:"Matrix M2",m:{ICT:{s:"1.5 Ton × 1; equipment heat ≈ 2 kW (CRC 1.71 + monitor 0.29 kW)",src:"Matrix M2, SPS §4.2"}}}),
+ R("Mechanical","AC – technical room","Equipment heat ≈ 3.3 kW (PDU 1.53 + compressor 1.49 + UPS 0.25 kW)",{only:["ICT"],src:"SPS §4.2"}),
+ R("Mechanical","Exam room temperature","18 – 24 °C",{v:"Meter",op:"range",mn:18,mx:24,src:"SPD A-1"}),
+ R("Mechanical","Exam room humidity","35 – 70 % RH, non-condensing",{v:"Meter",op:"range",mn:35,mx:70,src:"SPD A-1"}),
+ R("Mechanical","Control room temperature","15 – 24 °C",{v:"Meter",op:"range",mn:15,mx:24,src:"SPD A-1"}),
+ R("Mechanical","Technical room temperature","15 – 27 °C",{v:"Meter",op:"range",mn:15,mx:27,only:["ICT"],src:"SPD A-1"}),
+ R("Mechanical","Temperature stability","Change ≤ 3 °C per hour",{v:"Document",src:"SPD A-1"}),
+ R("Mechanical","Air quality","Fully ducted supply/return, no open ceiling plenum; construction dust removed",{only:["ICT"],src:"SPS §4.2"}),
+ R("Mechanical","Drain for AC systems","Condensate drain for each unit",{src:"Matrix M3"}),
+ R("Mechanical","Medical gas","As required by the customer",{ty:"C",src:"Matrix M4"}),
+ R("Mechanical","Firefighting system","Per civil defence code",{src:"Matrix M5"}),
+ R("Civil","Exam room floor area","Per approved site layout",{v:"Laser",ln:"area",src:"Survey"}),
+ R("Civil","Ceiling height (finished)","Per approved site layout",{v:"Laser",ln:"ceiling",src:"Survey",m:{ICT:{s:"≥ 2.60 m; suspended ceiling 2.80 m, slab 3.00 m",op:">=",mn:2.6,src:"SPD AD-1"}}}),
+ R("Civil","Lead shielding walls","4 mm Pb up to 3 m height (final value per radiation protection report)",{v:"Document",src:"Matrix C1"}),
+ R("Civil","Radiation protection approval","Shielding approved by the radiation authority before installation",{v:"Document",src:"SPS §1.6"}),
+ R("Civil","Leaded entrance door – width","120 cm clear opening",{v:"Laser",op:">=",mn:1.2,ln:"door",src:"Matrix C2"}),
+ R("Civil","Leaded entrance door – height","210 cm clear opening",{v:"Laser",op:">=",mn:2.1,src:"Matrix C2"}),
+ R("Civil","Leaded glass window – width","120 × 80 cm, control room",{v:"Laser",op:">=",mn:1.2,src:"Matrix C5"}),
+ R("Civil","Window and door frames","Installed",{src:"Matrix C6"}),
+ R("Civil","Control room door","Leaded if it opens into the exam room",{src:"Matrix C7"}),
+ R("Civil","Concrete base","Base for gantry and table",{src:"Matrix C3",m:{ICT:{s:"Base plate provision (XD-1); gantry 8 × Hilti KB3 3/4\" (25.4 kN), table 5 × KB3 3/8\" (8.7 kN)",src:"SPD XD-1, SPS §2.2.1"}}}),
+ R("Civil","Floor load capacity","Suitable for gantry and table",{v:"Document",src:"SPS §2.1",m:{ICT:{s:"Gantry 2,566 kg, table 445 kg, PDU 531 kg",src:"SPS §2.2.1"}}}),
+ R("Civil","Floor levelness","Floor perfectly level",{v:"Meter",src:"Matrix C12",m:{ICT:{s:"< 6.35 mm across the equipment area",op:"<=",mx:6.35,src:"SPS §2.2"}}}),
+ R("Civil","Floor vibration","Measured 1–150 Hz at gantry and table (critical 10–30 Hz)",{v:"Document",only:["ICT"],src:"SPS §2.1"}),
+ R("Civil","Floor duct","Floor duct to gantry",{src:"Matrix C4",m:{ICT:{s:"Flush floor ducts 400 × 60 and 200 × 60, cable outlet 400 × 90, Ø60 core drill (X-1)",src:"SPD X-1"}}}),
+ R("Civil","Wall ducts and opening","Surface ducts 130 × 60 and 200 × 70 + wall opening (X-3)",{only:["ICT"],src:"SPD X-3"}),
+ R("Civil","Walls flat and plumb","Flat and perpendicular at mounting areas",{only:["ICT"],src:"SPS §2.4"}),
+ R("Civil","Reference axes marked","Gantry axes marked on the floor per drawings",{only:["ICT"],src:"SPS §2.1"}),
+ R("Civil","Control desk","Installed",{src:"Matrix C8"}),
+ R("Civil","Wall cladding","Installed",{src:"Matrix C9"}),
+ R("Civil","Wall painting","Finished",{src:"Matrix C10"}),
+ R("Civil","Furniture","Installed",{src:"Matrix C11"}),
+ R("Civil","Floor tiling","Installed and perfectly level",{src:"Matrix C12"}),
+ R("Civil","Floor PVC","Antistatic; NOT laid before CT installation",{src:"Matrix C13 + note"}),
+ R("Civil","False ceiling","Installed",{src:"Matrix C14"}),
+ R("Civil","Technical room","Room for system cabinets",{src:"Matrix C15",m:{ICT:{s:"For PDU, air compressor and UPS; free floor in front of cabinets for service",src:"SPD A-1, SPS §2.2"}}}),
+ R("Civil","Drain for CT air compressor","Floor drain near the compressor",{src:"Matrix C16, SPS §4.5"}),
+ R("Civil","Partitioning","As per layout",{src:"Matrix C17"}),
+ R("Civil","CT room resizing","If needed",{ty:"C",src:"Matrix C18"}),
+ R("Civil","Control room resizing","If needed",{ty:"C",src:"Matrix C19"}),
+ R("Civil","Entrance door resizing","If needed",{ty:"C",src:"Matrix C20"}),
+ R("Delivery","Equipment delivery to site","Delivery and offloading",{r:E,src:"Matrix"}),
+ R("Delivery","Site access","Large truck, forklift; crane if needed",{r:E,only:["ICT"],src:"SPS §1.7.2"}),
+ R("Delivery","Route door width","≥ 1.05 m",{r:E,v:"Laser",op:">=",mn:1.05,only:["ICT"],src:"SPS §1.7.2"}),
+ R("Delivery","Route door height","≥ 2.006 m",{r:E,v:"Laser",op:">=",mn:2.006,only:["ICT"],src:"SPS §1.7.2"}),
+ R("Delivery","Corridor width","≥ 1.829 m (incl. 100 mm for wall obstacles)",{r:E,v:"Laser",op:">=",mn:1.829,only:["ICT"],src:"SPS §1.7.2"}),
+ R("Delivery","Corridor width at 90° bend","≥ 2.438 m when the door is at minimum width",{r:E,v:"Laser",op:">=",mn:2.438,only:["ICT"],src:"SPS §1.7.2"}),
+ R("Delivery","Elevator cage width","≥ 1.727 m (cage 1.727 × 2.756 × 2.000 m)",{r:E,v:"Laser",op:">=",mn:1.727,only:["ICT"],src:"SPS §1.7.2"}),
+ R("Delivery","Elevator cage depth","≥ 2.756 m",{r:E,v:"Laser",op:">=",mn:2.756,only:["ICT"],src:"SPS §1.7.2"}),
+ R("Delivery","Route floor and elevator load","Heaviest package 3,378 kg + transport tools; longest 3.162 m",{r:E,only:["ICT"],src:"SPS §1.7.2"}),
+ R("General","Site ready before delivery","Finished, clean, dry, lockable, clear of contractors",{src:"SPS §1.5"})
+];
+const legacy=(rows)=>rows.map(r=>({c:r[0],t:r[1],s:r[2],ty:r[3],r:r[4]==="MOH"?C:r[4],v:r[5],op:r[6]||"",mn:r[7],mx:r[8],ln:r[9]||"",src:"Example"}));
 const DEFAULT_LIB = {
-  "CT":{name:"CT Scanner",foot:[2.0,5.6],reqs:[
-    ["Room","Scan room floor area","≥ 30 m²","M","MOH","Laser",">=",30,"","area"],
-    ["Room","Clear ceiling height","≥ 2.70 m","M","MOH","Laser",">=",2.70,"","ceiling"],
-    ["Room","Equipment door clear width","≥ 1.20 m","M","MOH","Laser",">=",1.20,"","door"],
-    ["Room","Equipment door clear height","≥ 2.10 m","M","MOH","Laser",">=",2.10],
-    ["Room","Control room width","≥ 2.50 m","M","MOH","Laser",">=",2.50],
-    ["Room","Delivery corridor width","≥ 1.50 m","M","MOH","Laser",">=",1.50],
-    ["Structure","Floor load capacity","≥ 1,000 kg/m²","M","MOH","Document"],
-    ["Structure","Floor levelness","± 2 mm over 1 m","M","MOH","Visual"],
-    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
-    ["Electrical","Power capacity","≥ 100 kVA, dedicated feeder","M","MOH","Document"],
-    ["Electrical","Main disconnect panel","Lockable, near control room","M","MOH","Visual"],
-    ["Electrical","Emergency-off buttons","Scan room + control room","M","Vendor","Visual"],
-    ["Electrical","UPS for console","3 kVA online","C","Experia","Visual"],
-    ["Shielding","Radiation shielding","2 mm Pb (per physicist)","M","MOH","Document"],
-    ["Shielding","Lead-glass window","2 mm Pb eq.","M","MOH","Visual"],
-    ["Safety","X-ray warning light","Above door, interlocked","M","Vendor","Visual"],
-    ["HVAC","Room temperature","20 – 24 °C","M","MOH","Meter","range",20,24],
-    ["HVAC","Relative humidity","30 – 70 %","M","MOH","Meter","range",30,70],
-    ["HVAC","Heat removal","≈ 8 kW","M","MOH","Document"],
-    ["Network","Data points","2 × Cat6 (PACS + service)","M","MOH","Visual"],
-    ["Network","Remote service line","VPN / internet","O","Experia","Visual"],
-    ["Plumbing","Chiller water","Only if water-cooled model","C","MOH","Visual"]]},
-  "MRI":{name:"MRI 1.5T",foot:[2.3,6.5],reqs:[
-    ["Room","Magnet room floor area","≥ 35 m²","M","MOH","Laser",">=",35,"","area"],
-    ["Room","Clear ceiling height","≥ 2.80 m","M","MOH","Laser",">=",2.80,"","ceiling"],
-    ["Room","Delivery route width","≥ 2.00 m","M","MOH","Laser",">=",2.00,"","door"],
-    ["Room","Delivery route height","≥ 2.20 m","M","MOH","Laser",">=",2.20],
-    ["Structure","Floor load","≥ 4,500 kg magnet footprint","M","MOH","Document"],
-    ["Shielding","RF cage","100 dB at 64 MHz","M","Vendor","Document"],
-    ["Shielding","5 Gauss line","Inside controlled zone","M","Vendor","Document"],
-    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
-    ["Electrical","Power capacity","≥ 120 kVA","M","MOH","Document"],
-    ["HVAC","Room temperature","18 – 22 °C","M","MOH","Meter","range",18,22],
-    ["HVAC","Quench pipe route","Clear route to outside","M","MOH","Visual"],
-    ["Plumbing","Chilled water","Per vendor flow rate","M","MOH","Document"],
-    ["Network","Data points","2 × Cat6","M","MOH","Visual"]]},
-  "CATH":{name:"Cath Lab",foot:[3.0,4.8],reqs:[
-    ["Room","Procedure room floor area","≥ 45 m²","M","MOH","Laser",">=",45,"","area"],
-    ["Room","Clear ceiling height","≥ 3.00 m","M","MOH","Laser",">=",3.00,"","ceiling"],
-    ["Room","Door clear width","≥ 1.40 m","M","MOH","Laser",">=",1.40,"","door"],
-    ["Structure","Ceiling support structure","Unistrut per vendor drawing","M","MOH","Document"],
-    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
-    ["Electrical","Power capacity","≥ 100 kVA","M","MOH","Document"],
-    ["Electrical","IT isolated power","Medical IT, Group 2","M","MOH","Visual"],
-    ["Shielding","Radiation shielding","2 mm Pb","M","MOH","Document"],
-    ["HVAC","Air changes","≥ 15 ACH, positive pressure","M","MOH","Document"],
-    ["HVAC","Room temperature","18 – 24 °C","M","MOH","Meter","range",18,24],
-    ["Gases","Medical gas outlets","O₂, vacuum, air","M","MOH","Visual"],
-    ["Network","Data points","4 × Cat6","M","MOH","Visual"]]},
-  "DR":{name:"Digital X-ray",foot:[1.6,3.2],reqs:[
-    ["Room","Room floor area","≥ 20 m²","M","MOH","Laser",">=",20,"","area"],
-    ["Room","Clear ceiling height","≥ 2.60 m (ceiling tube)","C","MOH","Laser",">=",2.60,"","ceiling"],
-    ["Room","Door clear width","≥ 1.10 m","M","MOH","Laser",">=",1.10,"","door"],
-    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
-    ["Electrical","Power capacity","≥ 65 kVA","M","MOH","Document"],
-    ["Shielding","Radiation shielding","1.5 mm Pb","M","MOH","Document"],
-    ["Network","Data points","2 × Cat6","M","MOH","Visual"]]}
+  "CT":{name:"CT Scanner",foot:[2.6,3.8],models:{"":"CT 5300 (Experia matrix)",ICT:"Philips iCT (JO-24-00007)"},mfoot:{ICT:[2.75,3.8]},reqs:CT_REQS},
+  "MRI":{name:"MRI 1.5T",foot:[2.3,6.5],example:true,reqs:legacy([
+    ["Room","Magnet room floor area","≥ 35 m²","M",C,"Laser",">=",35,"","area"],["Room","Clear ceiling height","≥ 2.80 m","M",C,"Laser",">=",2.80,"","ceiling"],
+    ["Room","Delivery route width","≥ 2.00 m","M",C,"Laser",">=",2.00,"","door"],["Structure","Floor load","≥ 4,500 kg magnet footprint","M",C,"Document"],
+    ["Shielding","RF cage","100 dB at 64 MHz","M",V,"Document"],["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M",C,"Meter","range",360,440],
+    ["HVAC","Room temperature","18 – 22 °C","M",C,"Meter","range",18,22],["HVAC","Quench pipe route","Clear route to outside","M",C,"Visual"],["Network","Data points","2 × Cat6","M",C,"Visual"]])},
+  "CATH":{name:"Cath Lab",foot:[3.0,4.8],example:true,reqs:legacy([
+    ["Room","Procedure room floor area","≥ 45 m²","M",C,"Laser",">=",45,"","area"],["Room","Clear ceiling height","≥ 3.00 m","M",C,"Laser",">=",3.00,"","ceiling"],
+    ["Room","Door clear width","≥ 1.40 m","M",C,"Laser",">=",1.40,"","door"],["Structure","Ceiling support structure","Unistrut per vendor drawing","M",C,"Document"],
+    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M",C,"Meter","range",360,440],["Electrical","IT isolated power","Medical IT, Group 2","M",C,"Visual"],
+    ["Shielding","Radiation shielding","2 mm Pb","M",C,"Document"],["HVAC","Room temperature","18 – 24 °C","M",C,"Meter","range",18,24],["Gases","Medical gas outlets","O₂, vacuum, air","M",C,"Visual"]])},
+  "DR":{name:"Digital X-ray",foot:[1.6,3.2],example:true,reqs:legacy([
+    ["Room","Room floor area","≥ 20 m²","M",C,"Laser",">=",20,"","area"],["Room","Clear ceiling height","≥ 2.60 m (ceiling tube)","C",C,"Laser",">=",2.60,"","ceiling"],
+    ["Room","Door clear width","≥ 1.10 m","M",C,"Laser",">=",1.10,"","door"],["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M",C,"Meter","range",360,440],
+    ["Shielding","Radiation shielding","1.5 mm Pb","M",C,"Document"],["Network","Data points","2 × Cat6","M",C,"Visual"]])}
 };
 const TYPE={M:"Mandatory",C:"Conditional",O:"Optional",X:"Site extra"};
-const CATS=["Room","Structure","Electrical","Shielding","Safety","HVAC","Network","Plumbing","Gases","Other"];
+const CATS=["General","Civil","Room","Structure","Electrical","Network","Mechanical","HVAC","Shielding","Safety","Plumbing","Gases","Delivery","Other"];
+const slug=t=>String(t).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48);
+function num(v){const n=parseFloat(String(v??"").replace(",","."));return isNaN(n)?null:n}
 function buildLib(raw){
   const lib={};
-  for(const k in raw){const d=raw[k];lib[k]={name:d.name,foot:d.foot||[2,4],reqs:d.reqs.map((r,i)=>({
-    id:k+"-"+(i+1),cat:r[0],text:r[1],spec:r[2],type:r[3]||"M",resp:r[4]||"MOH",verify:r[5]||"Visual",
-    op:r[6]||"",min:num(r[7]),max:num(r[8]),link:r[9]||""}))}}
+  for(const k in raw){const d=raw[k];const seen={};
+    lib[k]={name:d.name,foot:d.foot||[2,4],mfoot:d.mfoot||{},models:d.models||{"":"Standard"},example:!!d.example,reqs:d.reqs.map(r=>{
+      let id=k+"-"+slug(r.t);if(seen[id])id+="-"+(++seen[id]);else seen[id]=1;
+      return {id,cat:r.c,text:r.t,spec:r.s||"",type:r.ty||"M",resp:RESP.includes(r.r)?r.r:C,verify:r.v||"Visual",op:r.op||"",min:num(r.mn),max:num(r.mx),link:r.ln||"",src:r.src||"",only:r.only||null,m:r.m||{}}})}}
   return lib;
 }
-function num(v){const n=parseFloat(String(v??"").replace(",","."));return isNaN(n)?null:n}
-
 /* =====================================================================
    2. STATE + STORAGE
    ===================================================================== */
-const STORE="experia-survey-studio-v2";
+const STORE="experia-survey-studio-v3";
 let state=null;
 try{state=JSON.parse(localStorage.getItem(STORE))}catch(e){}
 function blankPlan(){return {walls:[],nextDir:0,autoTurn:true,closed:false,gap:null,ceiling:"",syms:[],ink:[]}}
-function blankSite(name,loc,devices,example){return {id:"S"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,loc:loc||"",date:new Date().toISOString().slice(0,10),surveyor:"",devices:devices||[],models:{},sel:{},extras:[],survey:{},plan:blankPlan(),example:!!example,visit:1}}
+function blankSite(name,loc,devices,example){return {id:"S"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,loc:loc||"",date:new Date().toISOString().slice(0,10),surveyor:"",devices:devices||[],models:{},mkey:{},sel:{},resp:{},extras:[],survey:{},plan:blankPlan(),example:!!example,visit:1}}
+let LIB=buildLib((state&&state.libRaw)||DEFAULT_LIB);
+const idOf=(d,t)=>(LIB[d]?.reqs.find(r=>r.text===t)||{}).id;
 function exampleSite(){
-  const s=blankSite("Example · Al Bashir CT Room 2","Amman",["CT"],true);
-  s.models.CT="128-slice (example)";
-  s.sel={"CT-13":"na","CT-22":"na","CT-21":"na"};
-  s.plan.walls=[{dir:0,len:6.12},{dir:1,len:5.04},{dir:2,len:6.12},{dir:3,len:5.04}];
-  s.plan.closed=true;s.plan.gap=0;s.plan.nextDir=0;s.plan.ceiling="2.62";
-  s.plan.syms=[{t:"door",x:6.12,y:3.6,w:"1.25"},{t:"power",x:0.3,y:0.6,h:"0.40"},{t:"data",x:0.3,y:1.2,h:"0.40"},{t:"eoff",x:5.8,y:0.3,h:"1.40"},{t:"equip",x:3.1,y:2.5,rot:0,dev:"CT"}];
-  const sv={"CT-4":["ok","2.15",""],"CT-5":["ok","2.80",""],"CT-6":["bad","1.35","Corridor narrows at fire door"],"CT-9":["ok","401",""],"CT-10":["bad","","Feeder shared with lift room"],"CT-12":["ok","",""],"CT-17":["ok","22.5",""],"CT-20":["bad","","Only one data point installed"]};
-  for(const k in sv)s.survey[k]={status:sv[k][0],measured:sv[k][1],comment:sv[k][2],photos:[]};
+  const s=blankSite("Example · Right Ray CT room","Amman",["CT"],true);
+  s.mkey.CT="ICT";s.models.CT="Philips iCT";
+  s.sel[idOf("CT","Medical gas")]="na";s.sel[idOf("CT","Door interlock contacts")]="na";
+  s.resp[idOf("CT","Floor duct")]=E;s.resp[idOf("CT","X-ray ON warning light")]=E;
+  s.plan.walls=[{dir:0,len:6.45},{dir:1,len:4.50},{dir:2,len:6.45},{dir:3,len:4.50}];
+  s.plan.closed=true;s.plan.gap=0;s.plan.ceiling="2.75";
+  s.plan.syms=[{t:"door",x:6.45,y:3.5,w:"1.20"},{t:"power",x:0.3,y:0.6,h:"0.40"},{t:"data",x:0.3,y:1.2,h:"0.40"},{t:"eoff",x:6.15,y:0.3,h:"1.40"},{t:"equip",x:3.0,y:2.25,rot:0,dev:"CT"}];
+  const sv=[["Supply voltage (L-L, measured)","ok","398",""],["Power box / main breaker","bad","","Existing 125 A MCCB; iCT needs 200 A Class B"],["Power capacity","bad","","Transformer capacity to be confirmed by MOH"],
+    ["Leaded entrance door – height","ok","2.10",""],["Leaded glass window – width","bad","1.00","Window opening 1.00 m, needs 1.20 m"],["Exam room temperature","ok","22.5",""],["Exam room humidity","ok","48",""],
+    ["Data outlets under control desk","bad","","Only one data outlet installed"],["Route door width","ok","1.40",""],["Corridor width","ok","2.10",""],["Floor PVC","ok","","Not laid yet, as required"]];
+  sv.forEach(([t,st,m,c])=>{const id=idOf("CT",t);if(id)s.survey[id]={status:st,measured:m,comment:c,photos:[]}});
   return s;
 }
-if(!state||!Array.isArray(state.sites)||!state.sites.length) state={sites:[exampleSite()],cur:0,step:0,filter:"all",libRaw:null};
-let LIB=buildLib(state.libRaw||DEFAULT_LIB);
+if(!state||!Array.isArray(state.sites)||!state.sites.length){
+  let old=null;try{old=JSON.parse(localStorage.getItem("experia-survey-studio-v2"))}catch(e){}
+  const keep=old&&Array.isArray(old.sites)?old.sites.filter(x=>!x.example).map(x=>({...x,mkey:x.mkey||{},resp:x.resp||{}})):[];
+  state={sites:[exampleSite(),...keep],cur:0,step:0,filter:"all",libRaw:null};
+}
+state.sites.forEach(x=>{x.mkey=x.mkey||{};x.resp=x.resp||{}});
 function save(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){toast("Storage full: export a backup and delete old sites")}}
 const site=()=>state.sites[state.cur]||state.sites[0];
 
@@ -339,12 +393,17 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const f2=v=>(Math.round(v*100)/100).toFixed(2);
 function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),2200)}
+/* requirements for one device at this site, resolved for the chosen model (ignores Keep/Drop) */
+function devReqs(s,d){const L=LIB[d];if(!L)return[];const mk=(s.mkey||{})[d]||"";
+  return L.reqs.filter(r=>!r.only||r.only.includes(mk)).map(r=>{const o=r.m[mk]||{};
+    return {...r,spec:o.s??r.spec,op:o.op??r.op,min:o.mn!==undefined?num(o.mn):r.min,max:o.mx!==undefined?num(o.mx):r.max,src:o.src??r.src,modelSpecific:!!(r.only||r.m[mk]),resp:(s.resp||{})[r.id]||r.resp,defResp:r.resp,device:d}})}
 function applicable(s=site()){
   const out=[];
-  s.devices.forEach(d=>{if(!LIB[d])return;LIB[d].reqs.forEach(r=>{if((s.sel[r.id]||"req")==="req")out.push({...r,device:d})})});
-  s.extras.forEach(x=>out.push({...x,type:"X",verify:x.verify||"Visual",op:x.op||"",min:x.min??null,max:x.max??null,link:""}));
-  const order=CATS;return out.sort((a,b)=>(order.indexOf(a.cat)+99*(order.indexOf(a.cat)<0))-(order.indexOf(b.cat)+99*(order.indexOf(b.cat)<0)));
+  s.devices.forEach(d=>devReqs(s,d).forEach(r=>{if((s.sel[r.id]||"req")==="req")out.push(r)}));
+  s.extras.forEach(x=>out.push({...x,type:"X",verify:x.verify||"Visual",op:x.op||"",min:x.min??null,max:x.max??null,link:"",src:"Site extra",resp:(s.resp||{})[x.id]||x.resp||C,defResp:x.resp||C}));
+  const o=c=>{const i=CATS.indexOf(c);return i<0?99:i};return out.sort((a,b)=>o(a.cat)-o(b.cat));
 }
+function respSeg(id,cur,def){return `<div class="seg resp" role="group" aria-label="Responsibility">${RESP.map(x=>`<button data-resp="${id}" data-v="${x}" class="${cur===x?"on-req":""}">${x}</button>`).join("")}</div>${cur!==def?'<span class="tag extra">Changed</span>':""}`}
 function evalRule(r,val){const v=num(val);if(!r.op||v===null)return null;
   if(r.op===">=")return v>=r.min; if(r.op==="<=")return v<=(r.max??r.min); if(r.op==="range")return v>=r.min&&v<=r.max; return null}
 function sv(s,id){return s.survey[id]=s.survey[id]||{status:"",measured:"",comment:"",photos:[]}}
@@ -363,7 +422,7 @@ function planPts(p){let x=0,y=0;const pts=[[0,0]];p.walls.forEach(w=>{const d=DI
 function planArea(p){if(!p.closed||p.walls.length<3)return null;const pts=planPts(p);let a=0;for(let i=0;i<pts.length-1;i++)a+=pts[i][0]*pts[i+1][1]-pts[i+1][0]*pts[i][1];return Math.abs(a)/2}
 function planPerim(p){return p.walls.reduce((t,w)=>t+w.len,0)}
 function inPoly(pt,pts){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const [xi,yi]=pts[i],[xj,yj]=pts[j];if(((yi>pt[1])!==(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/((yj-yi)||1e-9)+xi))c=!c}return c}
-function equipRect(e){const L=LIB[e.dev]||{foot:[2,4]};const [w,l]=L.foot;const hw=(e.rot?w:l)/2,hh=(e.rot?l:w)/2;return [[e.x-hw,e.y-hh],[e.x+hw,e.y-hh],[e.x+hw,e.y+hh],[e.x-hw,e.y+hh]]}
+function equipRect(e){const L=LIB[e.dev]||{foot:[2,4],mfoot:{}};const mk=(site().mkey||{})[e.dev]||"";const [w,l]=(L.mfoot||{})[mk]||L.foot;const hw=(e.rot?w:l)/2,hh=(e.rot?l:w)/2;return [[e.x-hw,e.y-hh],[e.x+hw,e.y-hh],[e.x+hw,e.y+hh],[e.x-hw,e.y+hh]]}
 function equipFits(e,p){if(!p.closed)return null;const pts=planPts(p);return equipRect(e).every(c=>inPoly(c,pts))}
 function addWall(len){const p=site().plan;if(p.closed){toast("Room is closed. Undo a wall to continue.");return}
   if(!(len>0.05)){toast("Wall length must be more than 0.05 m");return}
@@ -453,30 +512,35 @@ $("#newsite").onclick=()=>{state.sites.push(blankSite("New site "+(state.sites.l
 function vSite(){
   const s=site();
   return `<div class="eyebrow">Step 1</div><h1>Site and equipment</h1>
-  <p class="lede">Name the site and pick the equipment. Each device brings its full requirement list from the master library.</p>
+  <p class="lede">Name the site, pick the equipment and choose the model. The model decides which requirements and values apply.</p>
   <div class="card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px">
     <label>Site / room<br><input type="text" id="f-name" value="${esc(s.name)}" style="width:100%"></label>
     <label>Location<br><input type="text" id="f-loc" value="${esc(s.loc)}" style="width:100%"></label>
     <label>Survey date<br><input type="date" id="f-date" value="${esc(s.date)}" style="width:100%"></label>
     <label>Surveyed by<br><input type="text" id="f-surveyor" value="${esc(s.surveyor)}" style="width:100%" placeholder="Name"></label>
   </div>
-  <h2 style="margin-bottom:10px">Equipment${state.libRaw?"":'<span class="example">Example library</span>'}</h2>
-  <div class="devices">${Object.entries(LIB).map(([k,d])=>`<button class="dev" data-dev="${esc(k)}" aria-pressed="${s.devices.includes(k)}"><b>${esc(d.name)}</b><span class="count">${d.reqs.length} requirements</span></button>`).join("")}</div>
-  ${s.devices.length?`<div class="models">${s.devices.map(d=>`<label>${esc(LIB[d]?.name||d)} model<br><input type="text" data-model="${esc(d)}" value="${esc(s.models[d]||"")}" placeholder="Manufacturer and model" style="width:100%"></label>`).join("")}</div>`:""}
+  <h2 style="margin-bottom:10px">Equipment</h2>
+  <div class="devices">${Object.entries(LIB).map(([k,d])=>`<button class="dev" data-dev="${esc(k)}" aria-pressed="${s.devices.includes(k)}"><b>${esc(d.name)}</b><span class="count">${d.reqs.length} requirements${Object.keys(d.models).length>1?" · "+Object.keys(d.models).length+" models":""}</span>${d.example?'<span class="example" style="margin:0;align-self:flex-start">Example values</span>':""}</button>`).join("")}</div>
+  ${s.devices.length?`<div class="models">${s.devices.map(d=>{const L=LIB[d];if(!L)return "";const mk=s.mkey[d]||"";return `<div class="card" style="padding:12px"><b>${esc(L.name)}</b>
+    <label class="hint" style="display:block;margin-top:6px">Requirement profile<br><select data-mkey="${esc(d)}" style="width:100%">${Object.entries(L.models).map(([k,n])=>`<option value="${esc(k)}" ${k===mk?"selected":""}>${esc(n)}</option>`).join("")}</select></label>
+    <label class="hint" style="display:block;margin-top:6px">Model / serial (for the report)<br><input type="text" data-model="${esc(d)}" value="${esc(s.models[d]||"")}" placeholder="Manufacturer and model" style="width:100%"></label>
+    <div class="hint" style="margin-top:6px">${devReqs(s,d).length} requirements for this profile</div></div>`}).join("")}</div>`:""}
   <div class="row"><button class="btn primary" data-go="1">Continue to requirements →</button>
   <span style="flex:1"></span><button class="btn small" id="dupsite">Duplicate site</button><button class="btn small warn" id="delsite">Delete site</button></div>`;
 }
 function vReqs(){
   const s=site();if(!s.devices.length)return empty("No equipment chosen","Pick at least one device in step 1.",0);
-  let h=`<div class="eyebrow">Step 2</div><h1>Requirements for this site</h1>
-  <p class="lede">Everything starts as <b>Required</b>. Mark what this site doesn't need and add site-specific extras. The survey is built from what remains.</p>`;
-  s.devices.forEach(d=>{const dev=LIB[d];if(!dev)return;const kept=dev.reqs.filter(r=>(s.sel[r.id]||"req")==="req").length;
-    h+=`<section class="group"><header><h2>${esc(dev.name)}</h2><span class="meta mono">${kept}/${dev.reqs.length} kept · ${s.extras.filter(x=>x.device===d).length} extra</span></header>`;
-    [...new Set(dev.reqs.map(r=>r.cat))].forEach(c=>{h+=`<div class="cathead eyebrow">${esc(c)}</div>`;
-      dev.reqs.filter(r=>r.cat===c).forEach(r=>{const v=s.sel[r.id]||"req";
-        h+=`<div class="req ${v==="na"?"off":""}"><div class="txt"><b>${esc(r.text)}</b><span class="spec">${esc(r.spec)}</span><div class="tags"><span class="tag ${r.type==="M"?"mand":""}">${TYPE[r.type]||r.type}</span><span class="tag">${esc(r.resp)}</span><span class="tag">${esc(r.verify)}</span>${r.op?'<span class="tag auto">Auto pass/fail</span>':""}${r.link?`<span class="tag auto">From room plan</span>`:""}</div></div>
-        <div class="seg"><button data-sel="${r.id}" data-v="req" class="${v==="req"?"on-req":""}">Required</button><button data-sel="${r.id}" data-v="na" class="${v==="na"?"on-na":""}">Not needed</button></div></div>`})});
-    s.extras.filter(x=>x.device===d).forEach(x=>{h+=`<div class="req"><div class="txt"><b>${esc(x.text)}</b><span class="spec">${esc(x.spec)}</span><div class="tags"><span class="tag extra">Site extra</span><span class="tag">${esc(x.cat)}</span><span class="tag">${esc(x.resp)}</span></div></div><button class="btn small" data-delx="${x.id}">Remove</button></div>`});
+  let h=`<div class="eyebrow">Step 2</div><h1>Requirements and responsibility</h1>
+  <p class="lede">Everything starts as <b>Required</b> with the standard owner. For this site, mark what isn't needed, change who is responsible (Customer, Experia or Vendor), and add extras. You can also change the owner later during the survey.</p>
+  <div class="row noprint" style="margin-bottom:14px"><span class="hint">Set all visible items to:</span>${RESP.map(x=>`<button class="btn small" data-allresp="${x}">${x}</button>`).join("")}<button class="btn small" data-allresp="">Standard owners</button></div>`;
+  s.devices.forEach(d=>{const dev=LIB[d];if(!dev)return;const list=devReqs(s,d);const kept=list.filter(r=>(s.sel[r.id]||"req")==="req").length;
+    h+=`<section class="group"><header><h2>${esc(dev.name)} · ${esc(dev.models[s.mkey[d]||""]||"")}</h2><span class="meta mono">${kept}/${list.length} kept · ${s.extras.filter(x=>x.device===d).length} extra</span></header>`;
+    [...new Set(list.map(r=>r.cat))].sort((a,b)=>(CATS.indexOf(a)+1||99)-(CATS.indexOf(b)+1||99)).forEach(c=>{h+=`<div class="cathead eyebrow">${esc(c)}</div>`;
+      list.filter(r=>r.cat===c).forEach(r=>{const v=s.sel[r.id]||"req";
+        h+=`<div class="req ${v==="na"?"off":""}"><div class="txt"><b>${esc(r.text)}</b><span class="spec">${esc(r.spec)}</span><div class="tags"><span class="tag ${r.type==="M"?"mand":""}">${TYPE[r.type]||r.type}</span><span class="tag">${esc(r.verify)}</span>${r.src?`<span class="tag">${esc(r.src)}</span>`:""}${r.modelSpecific?'<span class="tag extra">Model specific</span>':""}${r.op?'<span class="tag auto">Auto pass/fail</span>':""}${r.link?`<span class="tag auto">From room plan</span>`:""}</div></div>
+        <div class="seg"><button data-sel="${r.id}" data-v="req" class="${v==="req"?"on-req":""}">Required</button><button data-sel="${r.id}" data-v="na" class="${v==="na"?"on-na":""}">Not needed</button></div>
+        <div class="respline">${respSeg(r.id,r.resp,r.defResp)}</div></div>`})});
+    s.extras.filter(x=>x.device===d).forEach(x=>{const cur=s.resp[x.id]||x.resp||C;h+=`<div class="req"><div class="txt"><b>${esc(x.text)}</b><span class="spec">${esc(x.spec)}</span><div class="tags"><span class="tag extra">Site extra</span><span class="tag">${esc(x.cat)}</span></div></div><button class="btn small" data-delx="${x.id}">Remove</button><div class="respline">${respSeg(x.id,cur,cur)}</div></div>`});
     h+=`<div class="addrow"><select id="xc-${d}">${CATS.map(c=>`<option>${c}</option>`).join("")}</select><input type="text" id="xt-${d}" placeholder="Extra requirement"><input type="text" id="xs-${d}" placeholder="Spec / value"><button class="btn" data-addx="${esc(d)}">+ Add extra</button></div></section>`});
   return h+`<button class="btn primary" data-go="2">Continue to survey →</button>`;
 }
@@ -497,7 +561,7 @@ function vSurvey(){
       const meas=r.link?`<div class="linked">${v.measured?esc(v.measured)+(r.link==="area"?" m²":" m"):"—"} · from room plan</div>`
         :`<div class="meas"><input type="text" inputmode="decimal" id="m-${r.id}" data-meas="${r.id}" placeholder="${r.verify==="Laser"?"Laser reading (m)":r.verify==="Meter"?"Meter reading":"Note / value"}" value="${esc(v.measured)}">${r.verify==="Laser"||r.op?`<button class="tg" data-tgt="${r.id}" aria-pressed="${tg}" aria-label="Send next laser reading here">◎</button>`:""}</div>`;
       h+=`<div class="req ${tg?"targeted":""}" id="row-${r.id}"><div class="txt"><b>${esc(r.text)}</b><span class="spec">Required: ${esc(r.spec)}</span>
-        <div class="tags">${r.type==="X"?'<span class="tag extra">Site extra</span>':""}<span class="tag">${esc(r.resp)}</span>${v.auto&&st2?'<span class="tag auto">Auto-checked</span>':""}${v.carried?'<span class="tag">OK last visit</span>':""}</div>
+        <div class="tags">${r.type==="X"?'<span class="tag extra">Site extra</span>':""}<label class="tag ownersel">Owner <select data-respsel="${r.id}" aria-label="Responsibility">${RESP.map(x=>`<option ${x===r.resp?"selected":""}>${x}</option>`).join("")}</select></label>${r.resp!==r.defResp?'<span class="tag extra">Owner changed</span>':""}${r.src?`<span class="tag">${esc(r.src)}</span>`:""}${v.auto&&st2?'<span class="tag auto">Auto-checked</span>':""}${v.carried?'<span class="tag">OK last visit</span>':""}</div>
         ${v.prev?`<div class="prev">Last visit: ${esc(v.prev.comment||"Not OK")}${v.prev.measured?" ("+esc(v.prev.measured)+")":""}</div>`:""}</div>
         <div class="seg"><button data-st="${r.id}" data-v="ok" class="${st2==="ok"?"on-ok":""}">OK</button><button data-st="${r.id}" data-v="bad" class="${st2==="bad"?"on-bad":""}">Not OK</button><button data-st="${r.id}" data-v="na" class="${st2==="na"?"on-na":""}">N/A</button></div>
         <div class="sx">${meas}<textarea id="c-${r.id}" data-com="${r.id}" rows="1" placeholder="Comment / action needed (tap the keyboard mic to dictate)">${esc(v.comment)}</textarea>
@@ -638,16 +702,18 @@ function vReport(){
   <div class="cols"><div style="min-width:0;display:flex;flex-direction:column;gap:16px">
     <div><h2 style="margin-bottom:8px">Actions required, by owner</h2>${fails.length?Object.entries(byResp).map(([o,rs])=>`<div class="tablewrap" style="margin-bottom:10px"><table><thead><tr><th colspan="3">${esc(o)} · ${rs.length} action${rs.length>1?"s":""}</th></tr></thead><tbody>${rs.map(r=>{const v=s.survey[r.id];return `<tr><td><b>${esc(r.text)}</b><br><span style="color:var(--muted)">${esc(v.comment||"")}</span></td><td class="mono">Req. ${esc(r.spec)}</td><td class="mono">${v.measured?"Found "+esc(v.measured):""}</td></tr>`}).join("")}</tbody></table></div>`).join(""):`<div class="card hint">No failed items.</div>`}</div>
     <div><h2 style="margin-bottom:8px">Not yet checked (${open.length})</h2><div class="tablewrap"><table><tbody>${open.map(r=>`<tr><td>${esc(r.text)}</td><td class="mono">${esc(r.spec)}</td><td><span class="pill open">Open</span></td></tr>`).join("")||'<tr><td class="hint">Everything has been checked.</td></tr>'}</tbody></table></div></div>
+    <div><h2 style="margin-bottom:8px">Requirements and responsibility matrix</h2><div class="tablewrap"><table class="matrix"><thead><tr><th>Section</th><th>#</th><th>Requirement</th>${RESP.map(x=>`<th class="ck">${x}</th>`).join("")}</tr></thead><tbody>${matrixRows(st.a).map(m=>`<tr><td>${esc(m.cat)}</td><td class="mono">${m.n}</td><td>${esc(m.r.text)}<br><span class="hint">${esc(m.r.spec)}</span></td>${RESP.map(x=>`<td class="ck">${m.r.resp===x?"✓":""}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>
     <div><h2 style="margin-bottom:8px">Full checklist</h2><div class="tablewrap"><table><thead><tr><th>Item</th><th>Required</th><th>Reading</th><th>Status</th></tr></thead><tbody>${st.a.map(r=>{const v=s.survey[r.id]||{};const p={ok:["ok","OK"],bad:["bad","Not OK"],na:["open","N/A"]}[v.status]||["open","Open"];return `<tr><td>${esc(r.text)}<br><span class="hint">${esc(r.cat)} · ${esc(r.resp)}</span></td><td class="mono">${esc(r.spec)}</td><td class="mono">${esc(v.measured||"")}</td><td><span class="pill ${p[0]}">${p[1]}</span></td></tr>`}).join("")}</tbody></table></div></div>
   </div><div style="min-width:0;display:flex;flex-direction:column;gap:16px">
     <div class="card"><h2 style="margin-bottom:8px">Room plan</h2>${img?`<img class="planimg" src="${img}" alt="Room plan with dimensions">`:'<p class="hint">No room plan yet.</p>'}</div>
     ${photos.length?`<div class="card"><h2 style="margin-bottom:8px">Photos</h2><div class="gallery">${photos.map(x=>`<figure><img data-ph="${x.p}" data-view="${x.p}" alt=""><figcaption>${esc(x.r.text)}</figcaption></figure>`).join("")}</div></div>`:""}
     <div class="card noprint"><h2 style="margin-bottom:6px">Comments and status sheet</h2><p class="hint" style="margin:0 0 8px">Copy and paste into your Excel tracker.</p><pre class="csv" id="tsv">${esc(toTSV(s,st))}</pre><button class="btn small" id="copytsv" style="margin-top:8px">Copy table</button></div>
   </div></div>
-  <div class="signoff"><div>Surveyed by: ${esc(s.surveyor)}</div><div>Site representative (MOH)</div><div>Date: ${esc(s.date)}</div></div>`;
+  <div class="signoff"><div>Surveyed by: ${esc(s.surveyor)}</div><div>Customer representative</div><div>Date: ${esc(s.date)}</div></div>`;
 }
-function rows(s,st){const R=[["Site","Visit","Device","Model","Category","Requirement","Required","Type","Responsibility","Status","Reading","Comment"]];
-  st.a.forEach(r=>{const v=s.survey[r.id]||{};R.push([s.name,s.visit||1,LIB[r.device]?.name||r.device,s.models[r.device]||"",r.cat,r.text,r.spec,TYPE[r.type]||r.type,r.resp,{ok:"OK",bad:"Not OK",na:"N/A"}[v.status]||"Open",v.measured||"",v.comment||""])});return R}
+function matrixRows(list){const cnt={};return list.map(r=>{cnt[r.cat]=(cnt[r.cat]||0)+1;return {cat:r.cat,n:cnt[r.cat],r}})}
+function rows(s,st){const R=[["Site","Visit","Device","Model","Category","Requirement","Required","Type","Responsibility","Status","Reading","Comment","Source"]];
+  st.a.forEach(r=>{const v=s.survey[r.id]||{};R.push([s.name,s.visit||1,LIB[r.device]?.name||r.device,s.models[r.device]||LIB[r.device]?.models[(s.mkey||{})[r.device]||""]||"",r.cat,r.text,r.spec,TYPE[r.type]||r.type,r.resp,{ok:"OK",bad:"Not OK",na:"N/A"}[v.status]||"Open",v.measured||"",v.comment||"",r.src||""])});return R}
 function toTSV(s,st){return rows(s,st).map(r=>r.map(c=>String(c).replace(/[\t\n]/g," ")).join("\t")).join("\n")}
 function toCSV(s,st){return "﻿"+rows(s,st).map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\r\n")}
 /* ---- delivery: Bluefy has no print and limited downloads, so offer several routes ---- */
@@ -682,6 +748,13 @@ async function buildPDF(s){
     body:fails.sort((a,b)=>a.resp.localeCompare(b.resp)).map(r=>{const v=s.survey[r.id];return [P(r.resp),P(r.text),P(r.spec),P(v.measured||""),P(v.comment||"")]}),
     headStyles:{fillColor:BAD,textColor:255,fontStyle:"bold"},columnStyles:{0:{cellWidth:20},1:{cellWidth:44},2:{cellWidth:36},3:{cellWidth:18}}});y=doc.lastAutoTable.finalY+9}
   else{doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...MUT);doc.text("No failed items.",M,y+3);y+=10}
+  heading("Requirements and responsibility matrix");
+  doc.autoTable({...foot,startY:y,head:[["Section","#","Requirement","Customer","Experia","Vendor"]],
+    body:matrixRows(st.a).map(m=>[P(m.cat),m.n,P(m.r.text)+"\n"+P(m.r.spec),...RESP.map(x=>m.r.resp===x?"Y":"")]),
+    columnStyles:{0:{cellWidth:22},1:{cellWidth:8},3:{cellWidth:20,halign:"center"},4:{cellWidth:20,halign:"center"},5:{cellWidth:20,halign:"center"}},
+    didParseCell:d=>{if(d.section==="body"&&d.column.index>=3)d.cell.text=[""]},
+    didDrawCell:d=>{if(d.section==="body"&&d.column.index>=3&&d.cell.raw==="Y"){const cx=d.cell.x+d.cell.width/2,cy=d.cell.y+d.cell.height/2;doc.setDrawColor(...ACC);doc.setLineWidth(.7);doc.line(cx-2.2,cy,cx-.6,cy+1.8);doc.line(cx-.6,cy+1.8,cx+2.6,cy-2)}}});
+  y=doc.lastAutoTable.finalY+9;
   heading("Full checklist");
   const lab={ok:"OK",bad:"Not OK",na:"N/A"};
   doc.autoTable({...foot,startY:y,head:[["Category","Requirement","Required","Reading","Status","Owner","Comment"]],
@@ -698,7 +771,7 @@ async function buildPDF(s){
     if(col)y+=ch+10}
   if(y>H-40){doc.addPage();y=24}
   y+=10;doc.setDrawColor(...INK);doc.setLineWidth(.3);const sw=(W-2*M-2*8)/3;
-  ["Surveyed by: "+(s.surveyor||""),"Site representative (MOH)","Date: "+s.date].forEach((t,i)=>{const x=M+i*(sw+8);doc.line(x,y,x+sw,y);doc.setFontSize(8);doc.setTextColor(...MUT);doc.text(P(t),x,y+4.5)});
+  ["Surveyed by: "+(s.surveyor||""),"Customer representative","Date: "+s.date].forEach((t,i)=>{const x=M+i*(sw+8);doc.line(x,y,x+sw,y);doc.setFontSize(8);doc.setTextColor(...MUT);doc.text(P(t),x,y+4.5)});
   const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(...MUT);doc.text(P("Experia Healthcare Systems - "+s.name),M,H-8);doc.text("Page "+i+" of "+n,W-M,H-8,{align:"right"})}
   return doc.output("blob");
 }
@@ -771,31 +844,48 @@ function nextVisit(){const s=site();const n=JSON.parse(JSON.stringify(s));n.id="
   state.sites.push(n);state.cur=state.sites.length-1;state.step=2;state.filter="open";save();render();toast("Visit "+n.visit+" created with open and failed items")}
 
 /* ---- library ---- */
+const LIBHEAD=["Device","Model","Category","Requirement","Spec","Type","Responsibility","Verify","Rule","Min","Max","Link","Source"];
+function libRows(){const out=[];
+  Object.entries(LIB).forEach(([k,d])=>{
+    d.reqs.filter(r=>!r.only).forEach(r=>out.push([d.name,"",r.cat,r.text,r.spec,r.type,r.resp,r.verify,r.op,r.min??"",r.max??"",r.link,r.src]));
+    Object.entries(d.models).filter(([mk])=>mk).forEach(([mk,mn])=>d.reqs.forEach(r=>{
+      if(r.only&&r.only.includes(mk))out.push([d.name,mn,r.cat,r.text,r.spec,r.type,r.resp,r.verify,r.op,r.min??"",r.max??"",r.link,r.src]);
+      else if(!r.only&&r.m[mk]){const o=r.m[mk];out.push([d.name,mn,r.cat,r.text,o.s??r.spec,r.type,r.resp,r.verify,o.op??r.op,o.mn??r.min??"",o.mx??r.max??"",r.link,o.src??r.src])}}))});
+  return out}
 function vLibrary(){
-  const head=["Device","Category","Requirement","Spec","Type","Responsibility","Verify","Rule","Min","Max","Link"];
-  const tsv=[head.join("\t")].concat(Object.entries(LIB).flatMap(([k,d])=>d.reqs.map(r=>[d.name,r.cat,r.text,r.spec,r.type,r.resp,r.verify,r.op,r.min??"",r.max??"",r.link].join("\t")))).join("\n");
+  const tsv=[LIBHEAD.join("\t")].concat(libRows().map(r=>r.map(c=>String(c??"").replace(/[\t\n]/g," ")).join("\t"))).join("\n");
   return `<div class="eyebrow">Master library</div><h1>Requirements library</h1>
-  <p class="lede">${state.libRaw?"You are using your own library.":"These are <b>example values</b>. Replace them with Experia's real requirements."} Keep the library in Excel with the columns below, then copy all the rows (with the header) and paste them here.</p>
+  <p class="lede">CT is built from your responsibility matrix (CT 5300) and the Philips iCT site preparation package JO-24-00007. MRI, Cath Lab and X-ray still hold example values. Keep the library in Excel with the columns below, then copy all rows (with the header) and paste them here.</p>
   <div class="card" style="margin-bottom:14px"><h2 style="margin-bottom:8px">Column guide</h2><div class="tablewrap"><table><tbody>
+    <tr><td><b>Model</b></td><td>Leave empty for rows that apply to every model. Put a model name to add a requirement for that model only, or to override the Spec / Rule of a row with the same Requirement text.</td></tr>
     <tr><td><b>Type</b></td><td>M = Mandatory, C = Conditional, O = Optional</td></tr>
+    <tr><td><b>Responsibility</b></td><td>Customer, Experia or Vendor. This is the standard owner; you can change it per site.</td></tr>
     <tr><td><b>Verify</b></td><td>Laser, Meter, Visual or Document. Laser items take readings straight from the GLM.</td></tr>
     <tr><td><b>Rule / Min / Max</b></td><td><span class="mono">&gt;=</span> with Min, <span class="mono">&lt;=</span> with Max, or <span class="mono">range</span> with both. The app passes or fails the reading by itself.</td></tr>
-    <tr><td><b>Link</b></td><td><span class="mono">area</span>, <span class="mono">ceiling</span> or <span class="mono">door</span> to fill the item from the room plan.</td></tr></tbody></table></div></div>
+    <tr><td><b>Link</b></td><td><span class="mono">area</span>, <span class="mono">ceiling</span> or <span class="mono">door</span> to fill the item from the room plan.</td></tr>
+    <tr><td><b>Source</b></td><td>Where the requirement comes from, for example Matrix E1 or SPS §3.2.3.</td></tr></tbody></table></div></div>
   <div class="card"><h2 style="margin-bottom:8px">Paste from Excel</h2><textarea id="libpaste" rows="8" placeholder="Paste rows copied from Excel here" style="font-family:var(--f-mono);font-size:12.5px"></textarea>
-  <div class="row" style="margin-top:10px"><button class="btn primary" id="libimport">Use this library</button><button class="btn" id="libcopy">Copy current library</button>${state.libRaw?'<button class="btn warn" id="libreset">Back to example library</button>':""}</div>
+  <div class="row" style="margin-top:10px"><button class="btn primary" id="libimport">Use this library</button><button class="btn" id="libcopy">Copy current library</button>${state.libRaw?'<button class="btn warn" id="libreset">Back to built-in library</button>':""}</div>
   <pre class="csv" id="libtsv" style="margin-top:12px">${esc(tsv)}</pre></div>`;
 }
 function importLib(text){
   const lines=text.trim().split(/\r?\n/).map(l=>l.split("\t"));if(lines.length<2)throw new Error("Paste the header row and at least one requirement");
   const h=lines[0].map(x=>x.trim().toLowerCase());const ix=n=>h.indexOf(n);
   if(ix("device")<0||ix("requirement")<0)throw new Error("The header needs at least Device and Requirement columns");
-  const raw={};lines.slice(1).forEach(c=>{const g=n=>(ix(n)>=0?(c[ix(n)]||"").trim():"");const dev=g("device");if(!dev||!g("requirement"))return;
-    const key=dev.toUpperCase().replace(/[^A-Z0-9]+/g,"_");const def=Object.values(DEFAULT_LIB).find(d=>d.name.toLowerCase()===dev.toLowerCase());
-    raw[key]=raw[key]||{name:dev,foot:def?def.foot:[2,4],reqs:[]};
-    raw[key].reqs.push([g("category")||"Other",g("requirement"),g("spec"),(g("type")||"M").toUpperCase().slice(0,1),g("responsibility")||"MOH",g("verify")||"Visual",g("rule"),g("min"),g("max"),g("link").toLowerCase()])});
+  const raw={},rows=lines.slice(1).map(c=>{const g=n=>(ix(n)>=0?(c[ix(n)]||"").trim():"");return g}).filter(g=>g("device")&&g("requirement"));
+  const devKey=n=>{const hit=Object.entries(LIB).find(([k,d])=>d.name.toLowerCase()===n.toLowerCase());return hit?hit[0]:n.toUpperCase().replace(/[^A-Z0-9]+/g,"_")};
+  const modelKey=(dk,n)=>{if(!n)return "";const L=LIB[dk];const hit=L&&Object.entries(L.models).find(([k,v])=>v.toLowerCase()===n.toLowerCase());return hit?hit[0]:n.toUpperCase().replace(/[^A-Z0-9]+/g,"_")};
+  const respOf=v=>{v=(v||"").toLowerCase();return v.startsWith("exp")?E:v.startsWith("ven")||v.startsWith("sup")||v.startsWith("phil")?V:C};
+  const obj=g=>({c:g("category")||"Other",t:g("requirement"),s:g("spec"),ty:(g("type")||"M").toUpperCase().slice(0,1),r:respOf(g("responsibility")),v:g("verify")||"Visual",op:g("rule"),mn:g("min"),mx:g("max"),ln:g("link").toLowerCase(),src:g("source")});
+  [false,true].forEach(pass=>rows.forEach(g=>{const dn=g("device"),dk=devKey(dn),mn=g("model"),mk=modelKey(dk,mn);if(!!mk!==pass)return;
+    const old=LIB[dk];raw[dk]=raw[dk]||{name:dn,foot:old?old.foot:[2,4],mfoot:old?old.mfoot:{},models:{"":old?(old.models[""]||"Standard"):"Standard"},reqs:[]};
+    const D=raw[dk],o=obj(g);
+    if(!mk){D.reqs.push(o);return}
+    D.models[mk]=mn;const gen=D.reqs.find(r=>r.t===o.t&&!r.only);
+    if(gen){gen.m=gen.m||{};gen.m[mk]={s:o.s,op:o.op,mn:o.mn,mx:o.mx,src:o.src}}
+    else{const ex=D.reqs.find(r=>r.t===o.t&&r.only);if(ex)ex.only.push(mk);else D.reqs.push({...o,only:[mk]})}}));
   if(!Object.keys(raw).length)throw new Error("No requirement rows found");return raw;
 }
-
 function empty(t,d,step){return `<div class="card"><h2>${t}</h2><p class="lede" style="margin:6px 0 14px">${d}</p><button class="btn primary" data-go="${step}">Go to step ${step+1}</button></div>`}
 
 /* =====================================================================
@@ -841,7 +931,7 @@ function bindStep(){
   // library
   b("libimport",()=>{try{const raw=importLib($("#libpaste").value);state.libRaw=raw;LIB=buildLib(raw);save();render();toast("Library loaded: "+Object.keys(raw).length+" devices")}catch(e){toast(e.message)}});
   b("libcopy",()=>copyText($("#libtsv")));
-  b("libreset",()=>{state.libRaw=null;LIB=buildLib(DEFAULT_LIB);save();render();toast("Example library restored")});
+  b("libreset",()=>{state.libRaw=null;LIB=buildLib(DEFAULT_LIB);save();render();toast("Built-in library restored")});
 }
 function copyText(el){const t=el.textContent;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast("Copied. Paste into Excel")).catch(()=>{const r=document.createRange();r.selectNodeContents(el);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast("Selected. Tap Copy")})}
 
@@ -849,9 +939,11 @@ $("#main").addEventListener("click",async e=>{
   const t=e.target.closest("button,img[data-view]");if(!t)return;const s=site(),d=t.dataset;
   if(d.go){go(+d.go);return}
   if(d.dev){s.devices=s.devices.includes(d.dev)?s.devices.filter(x=>x!==d.dev):[...s.devices,d.dev];save();render();return}
-  if(d.sel){s.sel[d.sel]=d.v;save();render();return}
+  if(d.sel){s.sel[d.sel]=d.v;save();const y=scrollY;render();scrollTo(0,y);return}
+  if(d.resp){s.resp[d.resp]=d.v;save();const y=scrollY;render();scrollTo(0,y);return}
+  if(d.allresp!==undefined){s.devices.forEach(dv=>devReqs(s,dv).forEach(r=>{if(d.allresp)s.resp[r.id]=d.allresp;else delete s.resp[r.id]}));s.extras.forEach(x=>{if(d.allresp)s.resp[x.id]=d.allresp});save();render();toast(d.allresp?"All items set to "+d.allresp:"Standard owners restored");return}
   if(d.addx){const k=d.addx,tx=$("#xt-"+CSS.escape(k)).value.trim();if(!tx){toast("Type the extra requirement first");return}
-    s.extras.push({id:"X"+Date.now().toString(36),device:k,cat:$("#xc-"+CSS.escape(k)).value,text:tx,spec:$("#xs-"+CSS.escape(k)).value.trim(),resp:"MOH"});save();render();toast("Extra requirement added");return}
+    s.extras.push({id:"X"+Date.now().toString(36),device:k,cat:$("#xc-"+CSS.escape(k)).value,text:tx,spec:$("#xs-"+CSS.escape(k)).value.trim(),resp:C});save();render();toast("Extra requirement added");return}
   if(d.delx){s.extras=s.extras.filter(x=>x.id!==d.delx);save();render();return}
   if(d.filter){state.filter=d.filter;save();render();return}
   if(d.st){const v=sv(s,d.st);v.status=v.status===d.v?"":d.v;v.auto=false;save();const y=scrollY;render();scrollTo(0,y);return}
@@ -869,6 +961,8 @@ $("#main").addEventListener("input",e=>{const t=e.target,s=site();
   if(t.dataset.com){sv(s,t.dataset.com).comment=t.value;save()}
 });
 $("#main").addEventListener("change",async e=>{const t=e.target,s=site();
+  if(t.dataset.mkey){s.mkey[t.dataset.mkey]=t.value;save();render();toast("Requirement profile: "+t.options[t.selectedIndex].text);return}
+  if(t.dataset.respsel){s.resp[t.dataset.respsel]=t.value;save();const y=scrollY;render();scrollTo(0,y);toast("Owner changed to "+t.value);return}
   if(t.dataset.meas){const r=applicable(s).find(x=>x.id===t.dataset.meas);setMeasured(s,r,t.value.trim(),true);save();const y=scrollY;render();scrollTo(0,y)}
   if(t.dataset.wlen!==undefined){const v=num(t.value);if(v&&v>0.05){s.plan.walls[+t.dataset.wlen].len=v;const pts=planPts(s.plan),e2=pts[pts.length-1];if(s.plan.closed)s.plan.gap=Math.hypot(e2[0],e2[1]);save();render()}}
   if(t.dataset.photo&&t.files&&t.files[0]){try{const data=await compress(t.files[0]);const id="P"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);await putPhoto(id,data);sv(s,t.dataset.photo).photos.push(id);save();const y=scrollY;render();scrollTo(0,y);toast("Photo added")}catch(err){toast("Couldn't read that photo")}}
