@@ -168,6 +168,10 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 .gallery figure{margin:0;font-size:11.5px;color:var(--muted)}
 .gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+a.btn{text-decoration:none;display:inline-flex;align-items:center;color:inherit}
+.dl{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.fbimg{width:100%;border:1px solid var(--line);border-radius:8px;-webkit-touch-callout:default;display:block;margin-top:8px}
+.fb{border-top:1px solid var(--line);padding-top:12px;margin-top:6px}
 pre.csv{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--f-mono);font-size:12px;max-height:180px;overflow:auto;white-space:pre}
 .signoff{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:22px}
 .signoff div{border-top:1px solid var(--ink);padding-top:6px;font-size:12px;color:var(--muted)}
@@ -617,7 +621,7 @@ function openPop(o,px,py,redraw){
 function closePop(){if(pop){pop.remove();pop=null}}
 
 /* ---- report ---- */
-function planImage(s,W=900,H=640){try{const c=document.createElement("canvas");c.width=W;c.height=H;drawPlan(c.getContext("2d"),W,H,s,{export:true});return c.toDataURL("image/png")}catch(e){return ""}}
+function planImage(s,W=900,H=640,type="png"){try{const c=document.createElement("canvas");c.width=W;c.height=H;drawPlan(c.getContext("2d"),W,H,s,{export:true});return type==="jpeg"?c.toDataURL("image/jpeg",.9):c.toDataURL("image/png")}catch(e){return ""}}
 function vReport(){
   const s=site(),st=stats(s);const fails=st.a.filter(r=>(s.survey[r.id]||{}).status==="bad"),open=st.a.filter(r=>!(s.survey[r.id]||{}).status);
   const byResp={};fails.forEach(r=>(byResp[r.resp]=byResp[r.resp]||[]).push(r));
@@ -625,7 +629,7 @@ function vReport(){
   const photos=st.a.flatMap(r=>((s.survey[r.id]||{}).photos||[]).map(p=>({p,r})));
   return `<div class="eyebrow">Site survey report${s.visit>1?" · Visit "+s.visit:""}</div><h1>${esc(s.name)}</h1>
   <p class="lede">${esc(s.loc||"Location not set")} · ${esc(s.date)} · ${s.devices.map(d=>esc((LIB[d]?.name||d)+(s.models[d]?" ("+s.models[d]+")":""))).join(", ")||"No equipment"}${s.surveyor?" · Surveyed by "+esc(s.surveyor):""}${s.example?'<span class="example">Example data</span>':""}</p>
-  <div class="row noprint" style="margin-bottom:16px"><button class="btn primary" id="print">Print / save PDF</button><button class="btn" id="dlcsv">Export Excel (CSV)</button><button class="btn" id="dlplan" ${img?"":"disabled"}>Save plan image</button><button class="btn" id="backup">Backup site</button><button class="btn" id="restore">Restore</button><button class="btn" id="visit2" ${fails.length||open.length?"":"disabled"}>Start next visit</button></div>
+  <div class="row noprint" style="margin-bottom:16px"><button class="btn primary" id="mkpdf">Create PDF report</button><button class="btn" id="dlcsv">Export Excel (CSV)</button><button class="btn" id="dlplan" ${img?"":"disabled"}>Save plan image</button><button class="btn" id="backup">Backup site</button><button class="btn" id="restore">Restore</button><button class="btn" id="visit2" ${fails.length||open.length?"":"disabled"}>Start next visit</button></div>
   <div class="tiles"><div class="tile hero"><div class="k">Site readiness</div><div class="v">${st.pct}%</div><div style="font-size:12px;opacity:.75">of checked items pass</div></div>
     <div class="tile"><div class="k">Applicable items</div><div class="v">${st.total}</div></div>
     <div class="tile"><div class="k">Not OK</div><div class="v" style="color:var(--bad)">${st.bad}</div></div>
@@ -646,16 +650,121 @@ function rows(s,st){const R=[["Site","Visit","Device","Model","Category","Requir
   st.a.forEach(r=>{const v=s.survey[r.id]||{};R.push([s.name,s.visit||1,LIB[r.device]?.name||r.device,s.models[r.device]||"",r.cat,r.text,r.spec,TYPE[r.type]||r.type,r.resp,{ok:"OK",bad:"Not OK",na:"N/A"}[v.status]||"Open",v.measured||"",v.comment||""])});return R}
 function toTSV(s,st){return rows(s,st).map(r=>r.map(c=>String(c).replace(/[\t\n]/g," ")).join("\t")).join("\n")}
 function toCSV(s,st){return "﻿"+rows(s,st).map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\r\n")}
-async function exportFile(name,data,mime){
-  const blob=data instanceof Blob?data:new Blob([data],{type:mime});
-  try{const file=new File([blob],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return}}catch(e){if(e.name==="AbortError")return}
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);toast("Saved "+name);
+/* ---- delivery: Bluefy has no print and limited downloads, so offer several routes ---- */
+function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`)){res();return}const el=document.createElement("script");el.src=src;el.onload=res;el.onerror=()=>rej(new Error("No internet: couldn't load the PDF maker"));document.head.appendChild(el)})}
+async function ensurePDF(){if(window.jspdf&&window.jspdf.jsPDF&&window.jspdf.jsPDF.API.autoTable)return;
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js")}
+const P=x=>String(x??"").replace(/≥/g,">=").replace(/≤/g,"<=").replace(/²/g,"2").replace(/±/g,"+/-").replace(/°/g," deg").replace(/[–—]/g,"-").replace(/×/g,"x").replace(/≈/g,"~").replace(/₂/g,"2").replace(/·/g,"-").replace(/[⇆→←↑↓◎]/g,"").replace(/[^\x00-\xFF]/g,"");
+function imgSize(src){return new Promise(r=>{const i=new Image();i.onload=()=>r([i.naturalWidth,i.naturalHeight]);i.onerror=()=>r([4,3]);i.src=src})}
+async function buildPDF(s){
+  await ensurePDF();const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4"});
+  const st=stats(s),W=210,H=297,M=14,area=planArea(s.plan);
+  const INK=[15,42,51],MUT=[91,112,121],BAD=[192,57,43],OK=[31,138,76],ACC=[11,110,127];
+  doc.setFillColor(...INK);doc.rect(0,0,W,32,"F");doc.setTextColor(255);
+  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text("SITE SURVEY REPORT"+(s.visit>1?"  -  VISIT "+s.visit:""),M,9);
+  doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text(P(s.name),M,17);
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  doc.text(P([s.loc,s.date,s.surveyor?"Surveyed by "+s.surveyor:""].filter(Boolean).join("   |   ")),M,23.5);
+  doc.text(P(s.devices.map(d=>(LIB[d]?.name||d)+(s.models[d]?" ("+s.models[d]+")":"")).join(", ")||"No equipment"),M,28.5);
+  let y=39;const k=[["Readiness",st.pct+"%",INK],["Applicable",st.total,INK],["Not OK",st.bad,BAD],["Still open",st.open,MUT],["Floor area",area!==null?f2(area)+" m2":"-",INK]];
+  const kw=(W-2*M-4*3)/5;
+  k.forEach((t,i)=>{const x=M+i*(kw+3);doc.setDrawColor(214,224,227);doc.setLineWidth(.3);doc.roundedRect(x,y,kw,17,2,2);
+    doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...MUT);doc.text(t[0].toUpperCase(),x+3,y+5.5);
+    doc.setFont("helvetica","bold");doc.setFontSize(14);doc.setTextColor(...t[2]);doc.text(String(t[1]),x+3,y+13.5)});
+  y+=25;
+  const heading=(t)=>{if(y>H-30){doc.addPage();y=18}doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...INK);doc.text(t,M,y);y+=3};
+  if(s.plan.walls.length){heading("Room plan");const ih=(W-2*M)*560/820;doc.addImage(planImage(s,820,560,"jpeg"),"JPEG",M,y,W-2*M,ih);y+=ih+9}
+  const fails=st.a.filter(r=>(s.survey[r.id]||{}).status==="bad");
+  heading("Actions required ("+fails.length+")");
+  const foot={margin:{left:M,right:M,bottom:16},styles:{fontSize:8,cellPadding:1.8,textColor:INK,lineColor:[214,224,227],lineWidth:.2},headStyles:{fillColor:INK,textColor:255,fontStyle:"bold"},alternateRowStyles:{fillColor:[246,249,250]}};
+  if(fails.length){doc.autoTable({...foot,startY:y,head:[["Owner","Item","Required","Found","Comment / action"]],
+    body:fails.sort((a,b)=>a.resp.localeCompare(b.resp)).map(r=>{const v=s.survey[r.id];return [P(r.resp),P(r.text),P(r.spec),P(v.measured||""),P(v.comment||"")]}),
+    headStyles:{fillColor:BAD,textColor:255,fontStyle:"bold"},columnStyles:{0:{cellWidth:20},1:{cellWidth:44},2:{cellWidth:36},3:{cellWidth:18}}});y=doc.lastAutoTable.finalY+9}
+  else{doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...MUT);doc.text("No failed items.",M,y+3);y+=10}
+  heading("Full checklist");
+  const lab={ok:"OK",bad:"Not OK",na:"N/A"};
+  doc.autoTable({...foot,startY:y,head:[["Category","Requirement","Required","Reading","Status","Owner","Comment"]],
+    body:st.a.map(r=>{const v=s.survey[r.id]||{};return [P(r.cat),P(r.text)+(r.type==="X"?" (extra)":""),P(r.spec),P(v.measured||""),lab[v.status]||"Open",P(r.resp),P(v.comment||"")]}),
+    columnStyles:{0:{cellWidth:20},1:{cellWidth:40},2:{cellWidth:32},3:{cellWidth:16},4:{cellWidth:15},5:{cellWidth:16}},
+    didParseCell:d=>{if(d.section==="body"&&d.column.index===4){d.cell.styles.fontStyle="bold";d.cell.styles.textColor=d.cell.raw==="OK"?OK:d.cell.raw==="Not OK"?BAD:MUT}}});
+  y=doc.lastAutoTable.finalY+9;
+  const photos=st.a.flatMap(r=>((s.survey[r.id]||{}).photos||[]).map(p=>({p,r})));
+  if(photos.length){heading("Photos");y+=2;const cw=(W-2*M-2*5)/3,ch=cw*0.75;let col=0;
+    for(const ph of photos){const d=await getPhoto(ph.p);if(!d)continue;if(y+ch+8>H-16){doc.addPage();y=18;col=0}
+      const [iw,ihh]=await imgSize(d);const sc=Math.min(cw/iw,ch/ihh),dw=iw*sc,dh=ihh*sc,x=M+col*(cw+5);
+      doc.addImage(d,"JPEG",x+(cw-dw)/2,y+(ch-dh)/2,dw,dh);doc.setFontSize(7.5);doc.setTextColor(...MUT);doc.setFont("helvetica","normal");
+      doc.text(doc.splitTextToSize(P(ph.r.text),cw)[0],x,y+ch+4);col++;if(col===3){col=0;y+=ch+10}}
+    if(col)y+=ch+10}
+  if(y>H-40){doc.addPage();y=24}
+  y+=10;doc.setDrawColor(...INK);doc.setLineWidth(.3);const sw=(W-2*M-2*8)/3;
+  ["Surveyed by: "+(s.surveyor||""),"Site representative (MOH)","Date: "+s.date].forEach((t,i)=>{const x=M+i*(sw+8);doc.line(x,y,x+sw,y);doc.setFontSize(8);doc.setTextColor(...MUT);doc.text(P(t),x,y+4.5)});
+  const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(...MUT);doc.text(P("Experia Healthcare Systems - "+s.name),M,H-8);doc.text("Page "+i+" of "+n,W-M,H-8,{align:"right"})}
+  return doc.output("blob");
+}
+/* image version of the report, for long-press save when files can't be exported */
+function reportImage(s){
+  const st=stats(s),area=planArea(s.plan),W=1240,pad=56;const fails=st.a.filter(r=>(s.survey[r.id]||{}).status==="bad");
+  const tmp=document.createElement("canvas").getContext("2d");
+  const wrap=(t,font,max)=>{tmp.font=font;const words=String(t).split(" ");const lines=[];let l="";words.forEach(w=>{const tt=l?l+" "+w:w;if(tmp.measureText(tt).width>max&&l){lines.push(l);l=w}else l=tt});if(l)lines.push(l);return lines};
+  const items=fails.map(r=>{const v=s.survey[r.id];return {h:wrap(r.text+"  ["+r.resp+"]","700 24px Arial",W-2*pad),b:wrap("Required "+r.spec+(v.measured?"  ·  found "+v.measured:"")+(v.comment?"  ·  "+v.comment:""),"22px Arial",W-2*pad)}});
+  const planH=s.plan.walls.length?820:0;
+  let H=230+150+(planH?planH+70:0)+70+items.reduce((t,i)=>t+i.h.length*32+i.b.length*30+18,0)+(fails.length?0:40)+80;
+  const c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+  x.fillStyle="#ffffff";x.fillRect(0,0,W,H);x.fillStyle="#0f2a33";x.fillRect(0,0,W,200);
+  x.fillStyle="#9fc4cb";x.font="600 20px Arial";x.fillText("SITE SURVEY REPORT"+(s.visit>1?" · VISIT "+s.visit:""),pad,52);
+  x.fillStyle="#fff";x.font="800 44px Arial";x.fillText(s.name,pad,108);x.font="24px Arial";
+  x.fillText([s.loc,s.date,s.surveyor?"Surveyed by "+s.surveyor:""].filter(Boolean).join("   |   "),pad,148);
+  x.fillText(s.devices.map(d=>(LIB[d]?.name||d)+(s.models[d]?" ("+s.models[d]+")":"")).join(", "),pad,182);
+  let y=230;const k=[["READINESS",st.pct+"%","#0f2a33"],["APPLICABLE",st.total,"#0f2a33"],["NOT OK",st.bad,"#c0392b"],["OPEN",st.open,"#7d8b91"],["AREA",area!==null?f2(area)+" m²":"—","#0f2a33"]];
+  const kw=(W-2*pad-4*16)/5;k.forEach((t,i)=>{const xx=pad+i*(kw+16);x.strokeStyle="#d6e0e3";x.lineWidth=2;x.strokeRect(xx,y,kw,110);x.fillStyle="#5b7079";x.font="600 17px Arial";x.fillText(t[0],xx+16,y+34);x.fillStyle=t[2];x.font="800 40px Arial";x.fillText(String(t[1]),xx+16,y+86)});
+  y+=150;
+  if(planH){x.fillStyle="#0f2a33";x.font="700 28px Arial";x.fillText("Room plan",pad,y+10);y+=30;const pc=document.createElement("canvas");pc.width=W-2*pad;pc.height=planH;drawPlan(pc.getContext("2d"),pc.width,pc.height,s,{export:true});x.drawImage(pc,pad,y);x.strokeStyle="#d6e0e3";x.strokeRect(pad,y,pc.width,planH);y+=planH+40}
+  x.fillStyle="#0f2a33";x.font="700 28px Arial";x.fillText("Actions required ("+fails.length+")",pad,y+10);y+=50;
+  if(!fails.length){x.fillStyle="#5b7079";x.font="22px Arial";x.fillText("No failed items.",pad,y);y+=40}
+  items.forEach(it=>{x.fillStyle="#c0392b";x.fillRect(pad-18,y-22,6,it.h.length*32+it.b.length*30-6);x.fillStyle="#0f2a33";x.font="700 24px Arial";it.h.forEach(l=>{x.fillText(l,pad,y);y+=32});x.fillStyle="#5b7079";x.font="22px Arial";it.b.forEach(l=>{x.fillText(l,pad,y);y+=30});y+=18});
+  x.fillStyle="#7d8b91";x.font="18px Arial";x.fillText("Experia Healthcare Systems · Survey Studio · "+st.open+" items still open",pad,H-30);
+  return c.toDataURL("image/png");
+}
+function canShareFile(blob,name,mime){try{return !!(navigator.canShare&&navigator.canShare({files:[new File([blob],name,{type:mime})]}))}catch(e){return false}}
+function deliver(title,blob,name,mime,fallback){
+  const url=URL.createObjectURL(blob),share=canShareFile(blob,name,mime);
+  const m=document.createElement("div");m.className="modal";
+  m.innerHTML=`<div class="card"><h2>${esc(title)}</h2><p class="hint" style="margin:4px 0 0">${esc(name)} · ${Math.max(1,Math.round(blob.size/1024))} KB is ready. Try these in order.</p>
+   <div class="dl">
+     <button class="btn primary" id="d-share" ${share?"":"disabled"}>1 · Share / Save to Files</button>
+     <a class="btn" href="${url}" target="_blank" rel="noopener">2 · Open in new tab</a>
+     <button class="btn" id="d-here">3 · Open in this tab</button>
+     <a class="btn" href="${url}" download="${esc(name)}">4 · Download</a>
+   </div>
+   <p class="hint">In option 2 or 3, use the browser's share or menu button to save the file. Your survey stays saved; come back with the Back arrow.</p>
+   <div class="fb">${fallback||""}</div>
+   <p class="hint" style="margin-top:10px">Device check: share ${navigator.share?"yes":"no"} · share files ${share?"yes":"no"}</p>
+   <div class="row" style="margin-top:8px"><button class="btn" data-close>Close</button></div></div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click",async e=>{const t=e.target;
+    if(t===m||t.dataset.close!==undefined){m.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return}
+    if(t.id==="d-share"){try{await navigator.share({files:[new File([blob],name,{type:mime})],title:name})}catch(err){if(err.name!=="AbortError")toast("Share didn't work here. Try option 2")}}
+    if(t.id==="d-here"){const r=new FileReader();r.onload=()=>{location.href=r.result};r.readAsDataURL(blob)}
+    if(t.dataset.copy!==undefined){copyText(m.querySelector(t.dataset.copy))}
+  });
+  return m;
 }
 const safeName=s=>s.name.replace(/[^\w\-]+/g,"_").slice(0,40);
-async function backupSite(s){const copy=JSON.parse(JSON.stringify(s));copy.photoData={};for(const r in copy.survey){for(const p of copy.survey[r].photos||[]){const d=await getPhoto(p);if(d)copy.photoData[p]=d}}
-  await exportFile(safeName(s)+"_backup.json",JSON.stringify(copy),"application/json")}
-function restorePrompt(){const inp=document.createElement("input");inp.type="file";inp.accept=".json,application/json";inp.onchange=async()=>{try{const t=await inp.files[0].text();const s=JSON.parse(t);if(!s.survey||!s.plan)throw 0;
-  for(const p in (s.photoData||{}))await putPhoto(p,s.photoData[p]);delete s.photoData;s.id="S"+Date.now().toString(36);state.sites.push(s);state.cur=state.sites.length-1;save();render();toast("Site restored")}catch(e){toast("That file is not a Survey Studio backup")}};inp.click()}
+async function backupJSON(s){const copy=JSON.parse(JSON.stringify(s));copy.photoData={};for(const r in copy.survey){for(const p of copy.survey[r].photos||[]){const d=await getPhoto(p);if(d)copy.photoData[p]=d}}return JSON.stringify(copy)}
+async function backupSite(s){const json=await backupJSON(s);const light=JSON.parse(json);delete light.photoData;
+  deliver("Backup "+s.name,new Blob([json],{type:"application/json"}),safeName(s)+"_backup.json","application/json",
+   `<b>If no option works:</b> copy the backup code (without photos) and paste it into Notes or an email to yourself.<pre class="csv" id="bkcode">${esc(JSON.stringify(light))}</pre><button class="btn small" data-copy="#bkcode">Copy backup code</button>`)}
+function restorePrompt(){const m=document.createElement("div");m.className="modal";
+  m.innerHTML=`<div class="card"><h2>Restore a site</h2><p class="hint">Choose a backup file, or paste a backup code.</p>
+  <label class="btn photobtn" style="margin:8px 0">Choose backup file<input type="file" accept=".json,application/json" id="rfile"></label>
+  <textarea id="rcode" rows="5" placeholder="Paste backup code here" style="font-family:var(--f-mono);font-size:12px"></textarea>
+  <div class="row" style="margin-top:10px"><button class="btn primary" id="rgo">Restore code</button><button class="btn" data-close>Close</button></div></div>`;
+  document.body.appendChild(m);
+  const doRestore=async t=>{try{const s=JSON.parse(t);if(!s.survey||!s.plan)throw 0;for(const p in (s.photoData||{}))await putPhoto(p,s.photoData[p]);delete s.photoData;s.id="S"+Date.now().toString(36);state.sites.push(s);state.cur=state.sites.length-1;save();m.remove();render();toast("Site restored")}catch(e){toast("That is not a Survey Studio backup")}};
+  m.querySelector("#rfile").onchange=async e=>{const f=e.target.files[0];if(f)doRestore(await f.text())};
+  m.querySelector("#rgo").onclick=()=>doRestore(m.querySelector("#rcode").value.trim());
+  m.onclick=e=>{if(e.target===m||e.target.dataset.close!==undefined)m.remove()}}
 function nextVisit(){const s=site();const n=JSON.parse(JSON.stringify(s));n.id="S"+Date.now().toString(36);n.visit=(s.visit||1)+1;n.example=false;
   n.name=s.name.replace(/ · Visit \d+$/,"")+" · Visit "+n.visit;n.date=new Date().toISOString().slice(0,10);
   for(const k in n.survey){const v=n.survey[k];if(v.status==="bad")n.survey[k]={status:"",measured:"",comment:"",photos:[],prev:{comment:v.comment,measured:v.measured}};else if(v.status==="ok"){v.carried=true}}
@@ -717,9 +826,16 @@ function bindStep(){
   const at=$("#autoturn");if(at)at.onchange=()=>{s.plan.autoTurn=at.checked;save()};
   const ce=$("#ceil");if(ce)ce.onchange=()=>{s.plan.ceiling=ce.value.trim()===""?"":f2(num(ce.value)??0);save();render()};
   // report
-  b("print",()=>{try{window.print()}catch(e){toast("Printing isn't available here. Use Export instead")}});
-  b("dlcsv",()=>{const st=stats(s);exportFile(safeName(s)+"_survey.csv",toCSV(s,st),"text/csv")});
-  b("dlplan",async()=>{const d=planImage(s,1600,1140);const blob=await (await fetch(d)).blob();exportFile(safeName(s)+"_plan.png",blob,"image/png")});
+  b("mkpdf",async e=>{const btn=e.target;btn.disabled=true;btn.textContent="Building PDF…";
+    let blob=null,err="";try{blob=await buildPDF(s)}catch(x){err=x.message||"PDF maker failed"}
+    btn.disabled=false;btn.textContent="Create PDF report";const img=reportImage(s);
+    const fb=`<b>If no option works:</b> press and hold the report image below, then choose <b>Save to Photos</b> or <b>Share</b>.<img class="fbimg" src="${img}" alt="Report image">`;
+    if(blob)deliver("PDF report",blob,safeName(s)+"_report.pdf","application/pdf",fb);
+    else{const ib=await (await fetch(img)).blob();toast(err);deliver("Report image (PDF needs internet)",ib,safeName(s)+"_report.png","image/png",fb)}});
+  b("dlcsv",()=>{const st=stats(s);deliver("Excel sheet",new Blob([toCSV(s,st)],{type:"text/csv"}),safeName(s)+"_survey.csv","text/csv",
+    `<b>If no option works:</b> copy the table, open Excel on the iPad and paste it.<pre class="csv" id="cpt">${esc(toTSV(s,st))}</pre><button class="btn small" data-copy="#cpt">Copy table</button>`)});
+  b("dlplan",async()=>{const d=planImage(s,1600,1140);const blob=await (await fetch(d)).blob();deliver("Room plan image",blob,safeName(s)+"_plan.png","image/png",
+    `<b>If no option works:</b> press and hold the plan below and choose <b>Save to Photos</b>.<img class="fbimg" src="${d}" alt="Room plan">`)});
   b("backup",()=>backupSite(s));b("restore",restorePrompt);b("visit2",nextVisit);
   b("copytsv",()=>copyText($("#tsv")));
   // library
