@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GLM Laser Link Test</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Public+Sans:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single column test bench — status, big readout, walls demo, raw log. */
+:root{
+  --bg:#f3f6f7; --panel:#ffffff; --ink:#0f2a33; --muted:#5b7079; --line:#d6e0e3;
+  --accent:#0b6e7f; --accent-soft:#e1f0f2; --signal:#c26a12; --ok:#1f8a4c; --bad:#c0392b;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0b1619; --panel:#112227; --ink:#e3eef0; --muted:#8fa6ad; --line:#21393f;
+  --accent:#4fb8c9; --accent-soft:#163a41; --signal:#e9a14f; --ok:#4cc583; --bad:#ef7a6c; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(28px + env(safe-area-inset-bottom,0px));padding-inline:16px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-family:var(--f-display);font-weight:800;font-size:24px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:2px 0 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;padding:10px 16px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+button:disabled{opacity:.45;cursor:default}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted);display:inline-block}
+.dot.on{background:var(--ok)} .dot.err{background:var(--bad)}
+.status{font-weight:600}
+.readout{text-align:center;padding:26px 10px}
+.readout .v{font-family:var(--f-display);font-weight:800;font-size:clamp(56px,16vw,104px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.readout .u{font-size:.4em;color:var(--muted);margin-left:6px}
+.readout .hint{color:var(--muted);margin-top:8px}
+.flash{animation:fl .6s ease}
+@keyframes fl{from{color:var(--signal)}to{color:var(--ink)}}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--signal);font-weight:600;margin-bottom:6px}
+.walls{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.wall{border:1.5px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;text-align:left;background:var(--panel)}
+.wall.active{border-color:var(--accent);background:var(--accent-soft)}
+.wall .k{font-size:12px;color:var(--muted)}
+.wall .m{font-family:var(--f-mono);font-size:22px;font-weight:600}
+.area{margin-top:12px;font-size:15px}
+.area b{font-family:var(--f-mono)}
+.log{font-family:var(--f-mono);font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+input[type=text]{font:inherit;font-family:var(--f-mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 10px;flex:1;min-width:0}
+.warn{border-color:var(--signal)} .warn b{color:var(--signal)}
+ol{margin:6px 0 0;padding-left:20px}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>GLM Laser Link Test</h1><p class="sub">Bosch GLM 100-25 C → Bluetooth → Survey Studio</p></header>
+
+  <div class="card warn" id="nobt" hidden><b>Bluetooth isn't available in this browser.</b>
+    <ol><li>On iPad: open this page in the free <b>Bluefy</b> app (Safari can't use Bluetooth).</li>
+    <li>On a Windows laptop: open it in Chrome or Edge.</li></ol></div>
+
+  <div class="card">
+    <ol style="margin:0 0 12px">
+      <li>Close the Bosch MeasureOn app (the laser connects to one app at a time).</li>
+      <li>Turn on the laser and press its Bluetooth button.</li>
+      <li>Tap <b>Connect laser</b> and pick the GLM in the list.</li>
+      <li>Press the measure button on the laser.</li>
+    </ol>
+    <div class="row">
+      <button class="primary" id="connect">Connect laser</button>
+      <button id="connectAll">Show all devices</button>
+      <button id="disconnect" disabled>Disconnect</button>
+      <span class="row" style="gap:8px"><span class="dot" id="dot"></span><span class="status" id="status">Not connected</span></span>
+    </div>
+  </div>
+
+  <div class="card readout">
+    <div class="v" id="value">–.–––<span class="u">m</span></div>
+    <div class="hint" id="hint">Waiting for the first reading</div>
+  </div>
+
+  <div class="card">
+    <div class="eyebrow">Room demo</div>
+    <p class="sub" style="margin:0 0 10px">Each reading fills the highlighted wall, then moves to the next. Tap a wall to re-measure it.</p>
+    <div class="walls" id="walls"></div>
+    <div class="area" id="area"></div>
+    <div class="row" style="margin-top:10px"><button id="resetWalls">Clear walls</button></div>
+  </div>
+
+  <div class="card">
+    <div class="eyebrow">Technical log</div>
+    <p class="sub" style="margin:0 0 10px">If the number doesn't appear, copy this log and send it to me.</p>
+    <div class="log" id="log" aria-live="polite"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="copyLog">Copy log</button>
+      <button id="cmdSync" disabled>Re-send sync</button>
+      <button id="cmdLaser" disabled>Laser on</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label for="raw" class="sub" style="margin:0">Raw hex</label>
+      <input type="text" id="raw" placeholder="C0 55 02 01 00 1A">
+      <button id="sendRaw" disabled>Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Bosch "MT protocol" over BLE, as decoded by the developer community. Not an official Bosch API. */
+const SVC  = "02a6c0d0-0451-4000-b000-fb3210111989";
+const CHR  = "02a6c0d1-0451-4000-b000-fb3210111989";
+const CMD_SYNC  = [0xC0,0x55,0x02,0x01,0x00,0x1A]; // enable auto-sync: tool pushes each measurement
+const CMD_LASER = [0xC0,0x56,0x01,0x00,0x1E];      // laser on
+
+const $=id=>document.getElementById(id);
+let device=null, writeChars=[], lastVal=null, lastAt=0;
+const logEl=$("log");
+function log(t){const ts=new Date().toLocaleTimeString("en-GB");logEl.textContent+=`[${ts}] ${t}\n`;logEl.scrollTop=logEl.scrollHeight}
+const hex=b=>Array.from(new Uint8Array(b.buffer||b,b.byteOffset||0,b.byteLength)).map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");
+function setStatus(t,state){$("status").textContent=t;$("dot").className="dot"+(state?" "+state:"")}
+function setButtons(on){["disconnect","cmdSync","cmdLaser","sendRaw"].forEach(i=>$(i).disabled=!on);$("connect").disabled=on;$("connectAll").disabled=on}
+
+if(!navigator.bluetooth){$("nobt").hidden=false;$("connect").disabled=true;$("connectAll").disabled=true;log("navigator.bluetooth missing in this browser.")}
+else log("Bluetooth API available. Ready.");
+
+async function connect(all){
+  try{
+    setStatus("Choosing device…");
+    const opts = all ? {acceptAllDevices:true, optionalServices:[SVC]}
+                     : {filters:[{namePrefix:"GLM"},{services:[SVC]}], optionalServices:[SVC]};
+    device = await navigator.bluetooth.requestDevice(opts);
+    log(`Selected: ${device.name||"(no name)"} id=${device.id}`);
+    device.addEventListener("gattserverdisconnected",()=>{log("Disconnected.");setStatus("Disconnected","err");setButtons(false)});
+    setStatus("Connecting…");
+    const server = await device.gatt.connect();
+    log("GATT connected.");
+    let services;
+    try{ services=[await server.getPrimaryService(SVC)]; log("Bosch MT service found."); }
+    catch(e){ log("Bosch service not found by UUID ("+e.message+"). Listing all services…"); services=await server.getPrimaryServices(); }
+    writeChars=[];
+    for(const s of services){
+      log("Service "+s.uuid);
+      const chars = await s.getCharacteristics();
+      for(const c of chars){
+        const p=c.properties; const f=[p.read&&"read",p.write&&"write",p.writeWithoutResponse&&"writeNR",p.notify&&"notify",p.indicate&&"indicate"].filter(Boolean).join(",");
+        log("  Char "+c.uuid+" ["+f+"]");
+        if(p.notify||p.indicate){ c.addEventListener("characteristicvaluechanged",onData); await c.startNotifications(); log("    subscribed"); }
+        if(p.write||p.writeWithoutResponse) writeChars.push(c);
+      }
+    }
+    // prefer the known characteristic for commands
+    writeChars.sort((a,b)=>(b.uuid===CHR)-(a.uuid===CHR));
+    setButtons(true); setStatus("Connected to "+(device.name||"laser"),"on");
+    await send(CMD_SYNC,"sync on");
+    $("hint").textContent="Press measure on the laser";
+  }catch(e){ log("Error: "+e.message); setStatus(e.name==="NotFoundError"?"No device chosen":"Connection failed","err"); setButtons(false) }
+}
+async function send(bytes,label){
+  if(!writeChars.length){log("No writable characteristic.");return}
+  const c=writeChars[0]; const data=new Uint8Array(bytes);
+  try{ c.properties.write? await c.writeValueWithResponse(data) : await c.writeValueWithoutResponse(data);
+       log(`→ ${label||"sent"}: ${hex(data)}`); }
+  catch(e){ log("Write failed: "+e.message) }
+}
+
+/* Decode: community notes put the distance as a little-endian float32 (metres) at byte 7.
+   If that isn't plausible, scan the frame for any float in 0.05–250 m and log it as a candidate. */
+function onData(ev){
+  const dv=ev.target.value; log("← "+hex(dv));
+  let val=null, where=null;
+  if(dv.byteLength>=11){ const f=dv.getFloat32(7,true); if(isFinite(f)&&f>0.04&&f<250){val=f;where=7} }
+  if(val===null){
+    for(let i=0;i+4<=dv.byteLength;i++){ const f=dv.getFloat32(i,true); if(isFinite(f)&&f>0.04&&f<250&&Math.abs(f*1000-Math.round(f*1000))<0.05){val=f;where=i;break} }
+  }
+  if(val===null){ log("   (no distance in this frame)"); return }
+  const now=Date.now(); if(val===lastVal&&now-lastAt<800) return; // ignore duplicate echoes
+  lastVal=val; lastAt=now;
+  log(`   distance ${val.toFixed(3)} m (byte ${where})`);
+  showReading(val);
+}
+function showReading(v){
+  const el=$("value"); el.innerHTML=v.toFixed(3)+'<span class="u">m</span>'; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  $("hint").textContent="Received "+new Date().toLocaleTimeString("en-GB");
+  fillWall(v);
+}
+
+/* Room demo */
+const WALLS=["Wall A (length)","Wall B (width)","Ceiling height","Door width"];
+let wallVals=[null,null,null,null], active=0;
+function renderWalls(){
+  $("walls").innerHTML=WALLS.map((w,i)=>`<button class="wall ${i===active?"active":""}" data-i="${i}"><div class="k">${w}</div><div class="m">${wallVals[i]!=null?wallVals[i].toFixed(2)+" m":"—"}</div></button>`).join("");
+  const [a,b,h,d]=wallVals;
+  let t="";
+  if(a!=null&&b!=null){const ar=a*b; t+=`Floor area <b>${ar.toFixed(1)} m²</b> · CT example needs ≥ 30 m² → <b style="color:var(${ar>=30?"--ok":"--bad"})">${ar>=30?"OK":"Not OK"}</b>`}
+  if(h!=null) t+=`${t?"<br>":""}Ceiling <b>${h.toFixed(2)} m</b> · needs ≥ 2.70 m → <b style="color:var(${h>=2.7?"--ok":"--bad"})">${h>=2.7?"OK":"Not OK"}</b>`;
+  if(d!=null) t+=`${t?"<br>":""}Door <b>${d.toFixed(2)} m</b> · needs ≥ 1.20 m → <b style="color:var(${d>=1.2?"--ok":"--bad"})">${d>=1.2?"OK":"Not OK"}</b>`;
+  $("area").innerHTML=t||'<span class="sub">Results appear here as readings come in.</span>';
+}
+function fillWall(v){ wallVals[active]=v; const next=wallVals.findIndex(x=>x==null); active=next<0?active:next; renderWalls() }
+$("walls").addEventListener("click",e=>{const b=e.target.closest(".wall");if(!b)return;active=+b.dataset.i;renderWalls()});
+$("resetWalls").onclick=()=>{wallVals=[null,null,null,null];active=0;renderWalls()};
+renderWalls();
+
+$("connect").onclick=()=>connect(false);
+$("connectAll").onclick=()=>connect(true);
+$("disconnect").onclick=()=>{ if(device&&device.gatt.connected) device.gatt.disconnect() };
+$("cmdSync").onclick=()=>send(CMD_SYNC,"sync on");
+$("cmdLaser").onclick=()=>send(CMD_LASER,"laser on");
+$("sendRaw").onclick=()=>{const b=$("raw").value.trim().split(/[\s,]+/).filter(Boolean).map(x=>parseInt(x,16));
+  if(!b.length||b.some(isNaN)){log("Raw hex not valid");return} send(b,"raw")};
+$("copyLog").onclick=()=>{const t=logEl.textContent;
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>log("Log copied."))
+  .catch(()=>{const r=document.createRange();r.selectNodeContents(logEl);const s=getSelection();s.removeAllRanges();s.addRange(r);log("Log selected, press Copy.")})};
+</script>
+</body>
+</html>
