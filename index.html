@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Experia Survey Studio</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: app shell — top bar with laser chip, laser-target strip, step rail, working panel. */
+:root{
+  --bg:#f3f6f7; --panel:#ffffff; --ink:#0f2a33; --muted:#5b7079; --line:#d6e0e3;
+  --accent:#0b6e7f; --accent-soft:#e1f0f2; --signal:#c26a12; --signal-soft:#fbefe1;
+  --ok:#1f8a4c; --ok-soft:#e3f4ea; --bad:#c0392b; --bad-soft:#fbe9e7; --na:#7d8b91; --na-soft:#eef1f2;
+  --grid:#e2ecee; --grid-major:#c5dade;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0b1619; --panel:#112227; --ink:#e3eef0; --muted:#8fa6ad; --line:#21393f;
+  --accent:#4fb8c9; --accent-soft:#163a41; --signal:#e9a14f; --signal-soft:#3a2a16;
+  --ok:#4cc583; --ok-soft:#14352a; --bad:#ef7a6c; --bad-soft:#3c1d1a; --na:#8a9a9f; --na-soft:#1b2c31;
+  --grid:#15292f; --grid-major:#21444d; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+select,input[type=text],input[type=number],input[type=date],textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;font-size:16px}
+textarea{width:100%;resize:vertical;min-height:40px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;-webkit-tap-highlight-color:transparent}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.btn.small{padding:6px 10px;font-size:13px}
+.btn.warn{color:var(--bad)}
+.btn:disabled{opacity:.45}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand b{font-family:var(--f-display);font-weight:800;font-size:19px;letter-spacing:-.01em}
+.brand span{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.sitepick{display:flex;gap:8px;align-items:center}
+.sitepick select{max-width:260px}
+.laserchip{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:99px;padding:4px 6px 4px 12px;background:var(--bg)}
+.laserchip .dot{width:9px;height:9px;border-radius:50%;background:var(--na)}
+.laserchip.on .dot{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.laserchip .lv{border-radius:6px;padding:0 4px;font-family:var(--f-mono);font-size:13px;font-weight:600;min-width:64px}
+.laserchip .btn{border-radius:99px}
+.targetbar{position:sticky;top:var(--topH,58px);z-index:15;background:var(--signal-soft);border-bottom:1px solid var(--line);padding:8px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px}
+.targetbar b{color:var(--signal)}
+.targetbar .tlabel{font-weight:600}
+.flash{animation:fl .7s ease}
+@keyframes fl{0%{background:var(--signal);color:var(--panel)}100%{}}
+
+/* shell */
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 60px)}
+.rail{border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:3px}
+.step{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;cursor:pointer}
+.step .n{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.step .t{font-weight:600;display:block}
+.step .s{display:block;font-size:12px;color:var(--muted)}
+.step[aria-current="true"]{background:var(--accent-soft)}
+.step[aria-current="true"] .n{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.rail .sep{height:1px;background:var(--line);margin:10px 4px}
+main{padding:22px 26px 60px;min-width:0}
+h1{font-family:var(--f-display);font-weight:800;font-size:25px;letter-spacing:-.015em;margin:0 0 4px;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:700;font-size:16px;margin:0}
+.lede{color:var(--muted);margin:0 0 18px;max-width:70ch}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--signal);font-weight:600}
+.example{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--na-soft);color:var(--muted);padding:2px 8px;border-radius:99px;margin-left:8px;vertical-align:middle;font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+
+/* devices */
+.devices{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:12px}
+.dev{border:1.5px solid var(--line);background:var(--panel);border-radius:var(--r);padding:14px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:5px}
+.dev[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.dev b{font-family:var(--f-display);font-size:16px}
+.dev .count{font-family:var(--f-mono);font-size:12px;color:var(--accent)}
+.models{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:6px 0 18px}
+
+/* groups and rows */
+.group{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+.group>header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.group>header .meta{font-size:12px;color:var(--muted)}
+.cathead{padding:8px 16px 2px}
+.req{display:grid;grid-template-columns:1fr auto;gap:8px 16px;padding:12px 16px;border-bottom:1px solid var(--line);align-items:start;scroll-margin-top:140px}
+.req:last-child{border-bottom:0}
+.req .txt{min-width:0}
+.req .txt b{font-weight:600}
+.req .spec{font-family:var(--f-mono);font-size:13px;color:var(--accent);display:block}
+.req.off{opacity:.5}
+.req.off .txt b{text-decoration:line-through}
+.req.targeted{background:var(--signal-soft);box-shadow:inset 4px 0 0 var(--signal)}
+.prev{font-size:12.5px;color:var(--bad);margin-top:4px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.tag.mand{border-color:var(--accent);color:var(--accent)}
+.tag.extra{border-color:var(--signal);color:var(--signal)}
+.tag.auto{border-color:var(--ok);color:var(--ok)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-shrink:0}
+.seg button{border:0;background:var(--panel);padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg .on-req{background:var(--accent-soft);color:var(--accent)}
+.seg .on-ok{background:var(--ok-soft);color:var(--ok)}
+.seg .on-bad{background:var(--bad-soft);color:var(--bad)}
+.seg .on-na{background:var(--na-soft);color:var(--na)}
+.sx{grid-column:1/-1;display:grid;grid-template-columns:200px 1fr auto;gap:8px;align-items:start}
+.meas{display:flex;gap:0}
+.meas input{border-top-right-radius:0;border-bottom-right-radius:0;width:100%}
+.meas .tg{border:1px solid var(--line);border-left:0;border-radius:0 8px 8px 0;background:var(--panel);padding:0 11px;cursor:pointer;font-weight:700;color:var(--signal)}
+.meas .tg[aria-pressed="true"]{background:var(--signal);color:var(--panel);border-color:var(--signal)}
+.linked{font-family:var(--f-mono);font-size:13px;padding:8px 10px;border:1px dashed var(--accent);border-radius:8px;color:var(--accent)}
+.photos{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.photos img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.photobtn{position:relative;overflow:hidden}
+.photobtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.addrow{display:grid;grid-template-columns:130px 1fr 1fr auto;gap:8px;padding:12px 16px;background:var(--bg)}
+.statusbar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:14px;font-size:13px;color:var(--muted)}
+.meter{flex:1;min-width:150px;height:8px;border-radius:99px;background:var(--na-soft);overflow:hidden;display:flex}
+.meter i{display:block;height:100%}
+.filters .btn[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+
+/* plan */
+.planwrap{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tool{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:600;font-size:13px}
+.tool[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.canvasbox{position:relative;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--panel);touch-action:none}
+canvas#plan{display:block;width:100%;touch-action:none}
+.pop{position:absolute;background:var(--panel);border:1.5px solid var(--signal);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);font-size:13px;width:230px;z-index:3}
+.pop .row input{width:100px}
+.side{display:flex;flex-direction:column;gap:12px}
+.dirpad{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.dirpad button{padding:10px 0;font-size:18px}
+.dirpad button[aria-pressed="true"]{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+.walllist{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;margin:0;padding:0;list-style:none}
+.walllist li{display:grid;grid-template-columns:70px 28px 1fr;gap:6px;align-items:center;font-size:13px}
+.walllist input{width:100%;padding:5px 8px;font-family:var(--f-mono)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--f-mono);font-weight:600;text-align:right}
+.hint{font-size:12.5px;color:var(--muted)}
+.legend{display:grid;grid-template-columns:18px 1fr;gap:5px 8px;font-size:12.5px;align-items:center}
+.legend i{width:14px;height:14px;border-radius:3px;display:block}
+
+/* report */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;margin-bottom:18px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.tile .v{font-family:var(--f-display);font-weight:800;font-size:30px;font-variant-numeric:tabular-nums}
+.tile.hero{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.tile.hero .k{color:inherit;opacity:.75}
+.cols{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;background:var(--bg)}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.open{background:var(--na-soft);color:var(--na)}
+.planimg{width:100%;border-radius:8px;display:block;border:1px solid var(--line)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.gallery figure{margin:0;font-size:11.5px;color:var(--muted)}
+.gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+pre.csv{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--f-mono);font-size:12px;max-height:180px;overflow:auto;white-space:pre}
+.signoff{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:22px}
+.signoff div{border-top:1px solid var(--ink);padding-top:6px;font-size:12px;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:90vw}
+.toast.show{opacity:1}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:40;padding:16px}
+.modal .card{max-width:640px;width:100%;max-height:85vh;overflow:auto}
+.modal img{width:100%;border-radius:8px}
+
+@media (max-width:1000px){
+  .shell{grid-template-columns:1fr}
+  .rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px 12px}
+  .step{grid-template-columns:24px auto;flex-shrink:0;padding:7px 10px}
+  .step .n{width:24px;height:24px}
+  .step .s,.rail .sep{display:none}
+  main{padding:18px 16px 60px}
+  .planwrap,.cols{grid-template-columns:1fr}
+  .sx{grid-template-columns:170px 1fr}
+  .sx .photos{grid-column:1/-1}
+}
+@media (max-width:560px){
+  .req{grid-template-columns:1fr}
+  .sx{grid-template-columns:1fr}
+  .addrow{grid-template-columns:1fr}
+  .brand span{display:none}
+}
+@media print{
+  .top,.targetbar,.rail,.noprint,.toast{display:none!important}
+  .shell{display:block} main{padding:0}
+  body{background:#fff;color:#000}
+  .tile.hero{background:#fff;color:#000;border-color:#000}
+  .cols{grid-template-columns:1fr 1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top" id="top">
+  <div class="brand"><b>Survey Studio</b><span>Experia · Site preparation</span></div>
+  <div class="sitepick"><select id="sitesel" aria-label="Site"></select><button class="btn small" id="newsite">+ Site</button></div>
+  <div class="laserchip" id="laserchip"><span class="dot"></span><span class="lv" id="lv">Laser off</span><button class="btn small" id="lconnect">Connect laser</button></div>
+</header>
+<div class="targetbar" id="targetbar" hidden></div>
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="Survey steps"></nav>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   1. MASTER REQUIREMENTS LIBRARY  (EXAMPLE VALUES — replace via Library)
+   Columns: Category, Requirement, Spec, Type(M/C/O), Responsibility,
+            Verify(Laser/Meter/Visual/Document), Rule(>=,<=,range), Min, Max, Link(area/ceiling/door)
+   ===================================================================== */
+const DEFAULT_LIB = {
+  "CT":{name:"CT Scanner",foot:[2.0,5.6],reqs:[
+    ["Room","Scan room floor area","≥ 30 m²","M","MOH","Laser",">=",30,"","area"],
+    ["Room","Clear ceiling height","≥ 2.70 m","M","MOH","Laser",">=",2.70,"","ceiling"],
+    ["Room","Equipment door clear width","≥ 1.20 m","M","MOH","Laser",">=",1.20,"","door"],
+    ["Room","Equipment door clear height","≥ 2.10 m","M","MOH","Laser",">=",2.10],
+    ["Room","Control room width","≥ 2.50 m","M","MOH","Laser",">=",2.50],
+    ["Room","Delivery corridor width","≥ 1.50 m","M","MOH","Laser",">=",1.50],
+    ["Structure","Floor load capacity","≥ 1,000 kg/m²","M","MOH","Document"],
+    ["Structure","Floor levelness","± 2 mm over 1 m","M","MOH","Visual"],
+    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
+    ["Electrical","Power capacity","≥ 100 kVA, dedicated feeder","M","MOH","Document"],
+    ["Electrical","Main disconnect panel","Lockable, near control room","M","MOH","Visual"],
+    ["Electrical","Emergency-off buttons","Scan room + control room","M","Vendor","Visual"],
+    ["Electrical","UPS for console","3 kVA online","C","Experia","Visual"],
+    ["Shielding","Radiation shielding","2 mm Pb (per physicist)","M","MOH","Document"],
+    ["Shielding","Lead-glass window","2 mm Pb eq.","M","MOH","Visual"],
+    ["Safety","X-ray warning light","Above door, interlocked","M","Vendor","Visual"],
+    ["HVAC","Room temperature","20 – 24 °C","M","MOH","Meter","range",20,24],
+    ["HVAC","Relative humidity","30 – 70 %","M","MOH","Meter","range",30,70],
+    ["HVAC","Heat removal","≈ 8 kW","M","MOH","Document"],
+    ["Network","Data points","2 × Cat6 (PACS + service)","M","MOH","Visual"],
+    ["Network","Remote service line","VPN / internet","O","Experia","Visual"],
+    ["Plumbing","Chiller water","Only if water-cooled model","C","MOH","Visual"]]},
+  "MRI":{name:"MRI 1.5T",foot:[2.3,6.5],reqs:[
+    ["Room","Magnet room floor area","≥ 35 m²","M","MOH","Laser",">=",35,"","area"],
+    ["Room","Clear ceiling height","≥ 2.80 m","M","MOH","Laser",">=",2.80,"","ceiling"],
+    ["Room","Delivery route width","≥ 2.00 m","M","MOH","Laser",">=",2.00,"","door"],
+    ["Room","Delivery route height","≥ 2.20 m","M","MOH","Laser",">=",2.20],
+    ["Structure","Floor load","≥ 4,500 kg magnet footprint","M","MOH","Document"],
+    ["Shielding","RF cage","100 dB at 64 MHz","M","Vendor","Document"],
+    ["Shielding","5 Gauss line","Inside controlled zone","M","Vendor","Document"],
+    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
+    ["Electrical","Power capacity","≥ 120 kVA","M","MOH","Document"],
+    ["HVAC","Room temperature","18 – 22 °C","M","MOH","Meter","range",18,22],
+    ["HVAC","Quench pipe route","Clear route to outside","M","MOH","Visual"],
+    ["Plumbing","Chilled water","Per vendor flow rate","M","MOH","Document"],
+    ["Network","Data points","2 × Cat6","M","MOH","Visual"]]},
+  "CATH":{name:"Cath Lab",foot:[3.0,4.8],reqs:[
+    ["Room","Procedure room floor area","≥ 45 m²","M","MOH","Laser",">=",45,"","area"],
+    ["Room","Clear ceiling height","≥ 3.00 m","M","MOH","Laser",">=",3.00,"","ceiling"],
+    ["Room","Door clear width","≥ 1.40 m","M","MOH","Laser",">=",1.40,"","door"],
+    ["Structure","Ceiling support structure","Unistrut per vendor drawing","M","MOH","Document"],
+    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
+    ["Electrical","Power capacity","≥ 100 kVA","M","MOH","Document"],
+    ["Electrical","IT isolated power","Medical IT, Group 2","M","MOH","Visual"],
+    ["Shielding","Radiation shielding","2 mm Pb","M","MOH","Document"],
+    ["HVAC","Air changes","≥ 15 ACH, positive pressure","M","MOH","Document"],
+    ["HVAC","Room temperature","18 – 24 °C","M","MOH","Meter","range",18,24],
+    ["Gases","Medical gas outlets","O₂, vacuum, air","M","MOH","Visual"],
+    ["Network","Data points","4 × Cat6","M","MOH","Visual"]]},
+  "DR":{name:"Digital X-ray",foot:[1.6,3.2],reqs:[
+    ["Room","Room floor area","≥ 20 m²","M","MOH","Laser",">=",20,"","area"],
+    ["Room","Clear ceiling height","≥ 2.60 m (ceiling tube)","C","MOH","Laser",">=",2.60,"","ceiling"],
+    ["Room","Door clear width","≥ 1.10 m","M","MOH","Laser",">=",1.10,"","door"],
+    ["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M","MOH","Meter","range",360,440],
+    ["Electrical","Power capacity","≥ 65 kVA","M","MOH","Document"],
+    ["Shielding","Radiation shielding","1.5 mm Pb","M","MOH","Document"],
+    ["Network","Data points","2 × Cat6","M","MOH","Visual"]]}
+};
+const TYPE={M:"Mandatory",C:"Conditional",O:"Optional",X:"Site extra"};
+const CATS=["Room","Structure","Electrical","Shielding","Safety","HVAC","Network","Plumbing","Gases","Other"];
+function buildLib(raw){
+  const lib={};
+  for(const k in raw){const d=raw[k];lib[k]={name:d.name,foot:d.foot||[2,4],reqs:d.reqs.map((r,i)=>({
+    id:k+"-"+(i+1),cat:r[0],text:r[1],spec:r[2],type:r[3]||"M",resp:r[4]||"MOH",verify:r[5]||"Visual",
+    op:r[6]||"",min:num(r[7]),max:num(r[8]),link:r[9]||""}))}}
+  return lib;
+}
+function num(v){const n=parseFloat(String(v??"").replace(",","."));return isNaN(n)?null:n}
+
+/* =====================================================================
+   2. STATE + STORAGE
+   ===================================================================== */
+const STORE="experia-survey-studio-v2";
+let state=null;
+try{state=JSON.parse(localStorage.getItem(STORE))}catch(e){}
+function blankPlan(){return {walls:[],nextDir:0,autoTurn:true,closed:false,gap:null,ceiling:"",syms:[],ink:[]}}
+function blankSite(name,loc,devices,example){return {id:"S"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,loc:loc||"",date:new Date().toISOString().slice(0,10),surveyor:"",devices:devices||[],models:{},sel:{},extras:[],survey:{},plan:blankPlan(),example:!!example,visit:1}}
+function exampleSite(){
+  const s=blankSite("Example · Al Bashir CT Room 2","Amman",["CT"],true);
+  s.models.CT="128-slice (example)";
+  s.sel={"CT-13":"na","CT-22":"na","CT-21":"na"};
+  s.plan.walls=[{dir:0,len:6.12},{dir:1,len:5.04},{dir:2,len:6.12},{dir:3,len:5.04}];
+  s.plan.closed=true;s.plan.gap=0;s.plan.nextDir=0;s.plan.ceiling="2.62";
+  s.plan.syms=[{t:"door",x:6.12,y:3.6,w:"1.25"},{t:"power",x:0.3,y:0.6,h:"0.40"},{t:"data",x:0.3,y:1.2,h:"0.40"},{t:"eoff",x:5.8,y:0.3,h:"1.40"},{t:"equip",x:3.1,y:2.5,rot:0,dev:"CT"}];
+  const sv={"CT-4":["ok","2.15",""],"CT-5":["ok","2.80",""],"CT-6":["bad","1.35","Corridor narrows at fire door"],"CT-9":["ok","401",""],"CT-10":["bad","","Feeder shared with lift room"],"CT-12":["ok","",""],"CT-17":["ok","22.5",""],"CT-20":["bad","","Only one data point installed"]};
+  for(const k in sv)s.survey[k]={status:sv[k][0],measured:sv[k][1],comment:sv[k][2],photos:[]};
+  return s;
+}
+if(!state||!Array.isArray(state.sites)||!state.sites.length) state={sites:[exampleSite()],cur:0,step:0,filter:"all",libRaw:null};
+let LIB=buildLib(state.libRaw||DEFAULT_LIB);
+function save(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){toast("Storage full: export a backup and delete old sites")}}
+const site=()=>state.sites[state.cur]||state.sites[0];
+
+/* photos in IndexedDB */
+const PH={db:null,cache:{}};
+function idb(){if(PH.db)return Promise.resolve(PH.db);return new Promise(res=>{try{const r=indexedDB.open("survey-photos",1);r.onupgradeneeded=()=>r.result.createObjectStore("p");r.onsuccess=()=>{PH.db=r.result;res(PH.db)};r.onerror=()=>res(null)}catch(e){res(null)}})}
+async function putPhoto(id,data){PH.cache[id]=data;const db=await idb();if(!db)return;return new Promise(res=>{const tx=db.transaction("p","readwrite");tx.objectStore("p").put(data,id);tx.oncomplete=res;tx.onerror=res})}
+async function getPhoto(id){if(PH.cache[id])return PH.cache[id];const db=await idb();if(!db)return null;return new Promise(res=>{const q=db.transaction("p").objectStore("p").get(id);q.onsuccess=()=>{PH.cache[id]=q.result;res(q.result)};q.onerror=()=>res(null)})}
+function compress(file){return new Promise((res,rej)=>{const img=new Image();const u=URL.createObjectURL(file);img.onload=()=>{const s=Math.min(1,1400/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",.72))};img.onerror=()=>{URL.revokeObjectURL(u);rej()};img.src=u})}
+async function hydratePhotos(root=document){for(const im of root.querySelectorAll("img[data-ph]")){const d=await getPhoto(im.dataset.ph);if(d)im.src=d}}
+
+/* =====================================================================
+   3. HELPERS
+   ===================================================================== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const f2=v=>(Math.round(v*100)/100).toFixed(2);
+function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),2200)}
+function applicable(s=site()){
+  const out=[];
+  s.devices.forEach(d=>{if(!LIB[d])return;LIB[d].reqs.forEach(r=>{if((s.sel[r.id]||"req")==="req")out.push({...r,device:d})})});
+  s.extras.forEach(x=>out.push({...x,type:"X",verify:x.verify||"Visual",op:x.op||"",min:x.min??null,max:x.max??null,link:""}));
+  const order=CATS;return out.sort((a,b)=>(order.indexOf(a.cat)+99*(order.indexOf(a.cat)<0))-(order.indexOf(b.cat)+99*(order.indexOf(b.cat)<0)));
+}
+function evalRule(r,val){const v=num(val);if(!r.op||v===null)return null;
+  if(r.op===">=")return v>=r.min; if(r.op==="<=")return v<=(r.max??r.min); if(r.op==="range")return v>=r.min&&v<=r.max; return null}
+function sv(s,id){return s.survey[id]=s.survey[id]||{status:"",measured:"",comment:"",photos:[]}}
+function setMeasured(s,r,val,auto){const v=sv(s,r.id);v.measured=val;const res=evalRule(r,val);if(res!==null){v.status=res?"ok":"bad";v.auto=true}else if(auto&&val!==""){v.auto=false}}
+function stats(s=site()){
+  syncLinks(s);const a=applicable(s);let ok=0,bad=0,na=0;
+  a.forEach(r=>{const st=(s.survey[r.id]||{}).status;if(st==="ok")ok++;else if(st==="bad")bad++;else if(st==="na")na++});
+  return {total:a.length,ok,bad,na,open:a.length-ok-bad-na,pct:(ok+bad)?Math.round(ok/(ok+bad)*100):0,a};
+}
+
+/* =====================================================================
+   4. ROOM PLAN GEOMETRY (metres)
+   ===================================================================== */
+const DIRS=[[1,0],[0,1],[-1,0],[0,-1]], ARROW=["→","↓","←","↑"];
+function planPts(p){let x=0,y=0;const pts=[[0,0]];p.walls.forEach(w=>{const d=DIRS[w.dir];x+=d[0]*w.len;y+=d[1]*w.len;pts.push([x,y])});return pts}
+function planArea(p){if(!p.closed||p.walls.length<3)return null;const pts=planPts(p);let a=0;for(let i=0;i<pts.length-1;i++)a+=pts[i][0]*pts[i+1][1]-pts[i+1][0]*pts[i][1];return Math.abs(a)/2}
+function planPerim(p){return p.walls.reduce((t,w)=>t+w.len,0)}
+function inPoly(pt,pts){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const [xi,yi]=pts[i],[xj,yj]=pts[j];if(((yi>pt[1])!==(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/((yj-yi)||1e-9)+xi))c=!c}return c}
+function equipRect(e){const L=LIB[e.dev]||{foot:[2,4]};const [w,l]=L.foot;const hw=(e.rot?w:l)/2,hh=(e.rot?l:w)/2;return [[e.x-hw,e.y-hh],[e.x+hw,e.y-hh],[e.x+hw,e.y+hh],[e.x-hw,e.y+hh]]}
+function equipFits(e,p){if(!p.closed)return null;const pts=planPts(p);return equipRect(e).every(c=>inPoly(c,pts))}
+function addWall(len){const p=site().plan;if(p.closed){toast("Room is closed. Undo a wall to continue.");return}
+  if(!(len>0.05)){toast("Wall length must be more than 0.05 m");return}
+  p.walls.push({dir:p.nextDir,len:Math.round(len*1000)/1000});
+  if(p.autoTurn)p.nextDir=(p.nextDir+1)%4;
+  const pts=planPts(p),end=pts[pts.length-1],gap=Math.hypot(end[0],end[1]);
+  if(p.walls.length>=4&&gap<0.12){p.closed=true;p.gap=gap;toast("Room closed automatically · closure error "+f2(gap)+" m")}
+  save();
+}
+function closeRoom(){const p=site().plan;if(p.walls.length<2){toast("Measure at least two walls first");return}
+  let pts=planPts(p),[x,y]=pts[pts.length-1];
+  if(Math.abs(x)>0.05&&Math.abs(y)>0.05){p.walls.push({dir:x>0?2:0,len:Math.abs(x)});x=0}
+  pts=planPts(p);[x,y]=pts[pts.length-1];
+  if(Math.abs(y)>0.05)p.walls.push({dir:y>0?3:1,len:Math.abs(y)},);
+  else if(Math.abs(x)>0.05)p.walls.push({dir:x>0?2:0,len:Math.abs(x)});
+  p.walls.forEach(w=>w.len=Math.round(w.len*1000)/1000);
+  p.closed=true;p.gap=0;save();toast("Room closed. Missing wall added from geometry")}
+/* push plan values into linked requirements */
+function syncLinks(s){
+  const p=s.plan,area=planArea(p);
+  const doors=p.syms.filter(x=>x.t==="door"&&num(x.w)!==null).map(x=>num(x.w));
+  const vals={area:area!==null?f2(area):"",ceiling:num(p.ceiling)!==null?f2(num(p.ceiling)):"",door:doors.length?f2(Math.max(...doors)):""};
+  applicable(s).forEach(r=>{if(!r.link)return;const v=vals[r.link];const cur=s.survey[r.id];
+    if(v===""){return}
+    if(!cur||cur.measured!==v||cur.status===""){setMeasured(s,r,v,true)}});
+}
+
+/* =====================================================================
+   5. LASER (Bosch GLM over Bluetooth LE — community-decoded MT protocol)
+   ===================================================================== */
+const SVC="02a6c0d0-0451-4000-b000-fb3210111989", CHR="02a6c0d1-0451-4000-b000-fb3210111989";
+const CMD_SYNC=[0xC0,0x55,0x02,0x01,0x00,0x1A];
+const LZ={dev:null,write:null,last:null,lastAt:0};
+let target=null; // {key,label,apply(v)}
+async function laserConnect(){
+  if(!navigator.bluetooth){toast("Open this page in Bluefy to use the laser");return}
+  try{
+    LZ.dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:"GLM"},{services:[SVC]}],optionalServices:[SVC]});
+    LZ.dev.addEventListener("gattserverdisconnected",()=>{laserUI(false);toast("Laser disconnected")});
+    const server=await LZ.dev.gatt.connect();
+    let services;try{services=[await server.getPrimaryService(SVC)]}catch(e){services=await server.getPrimaryServices()}
+    LZ.write=null;
+    for(const sv of services){for(const c of await sv.getCharacteristics()){
+      if(c.properties.notify||c.properties.indicate){c.addEventListener("characteristicvaluechanged",onLaserData);await c.startNotifications()}
+      if((c.properties.write||c.properties.writeWithoutResponse)&&(!LZ.write||c.uuid===CHR))LZ.write=c}}
+    if(LZ.write){const d=new Uint8Array(CMD_SYNC);LZ.write.properties.write?await LZ.write.writeValueWithResponse(d):await LZ.write.writeValueWithoutResponse(d)}
+    laserUI(true);toast("Laser connected. Press measure on the laser");
+  }catch(e){if(e.name!=="NotFoundError")toast("Laser: "+e.message);laserUI(false)}
+}
+function laserUI(on){$("#laserchip").classList.toggle("on",on);$("#lconnect").textContent=on?"Disconnect":"Connect laser";if(!on)$("#lv").textContent=LZ.last!=null?f3(LZ.last)+" m":"Laser off";else if(LZ.last==null)$("#lv").textContent="Ready"}
+const f3=v=>v.toFixed(3);
+function onLaserData(ev){const dv=ev.target.value;let val=null;
+  if(dv.byteLength>=11){const f=dv.getFloat32(7,true);if(isFinite(f)&&f>0.04&&f<250)val=f}
+  if(val===null){for(let i=0;i+4<=dv.byteLength;i++){const f=dv.getFloat32(i,true);if(isFinite(f)&&f>0.04&&f<250&&Math.abs(f*1000-Math.round(f*1000))<0.05){val=f;break}}}
+  if(val===null)return;const now=Date.now();if(val===LZ.last&&now-LZ.lastAt<800)return;LZ.last=val;LZ.lastAt=now;reading(val)}
+function reading(v){
+  const lv=$("#lv");lv.textContent=f3(v)+" m";lv.classList.remove("flash");void lv.offsetWidth;lv.classList.add("flash");
+  if(target){const t=target;t.apply(Math.round(v*1000)/1000);toast(t.label+" ← "+f3(v)+" m")}
+  else toast("Reading "+f3(v)+" m. Tap ◎ on an item to send readings there");
+}
+function setTarget(t){target=t;renderTargetBar()}
+function renderTargetBar(){const tb=$("#targetbar");
+  if(!target){tb.hidden=true;return}
+  tb.hidden=false;tb.innerHTML=`<span>◎ Next laser reading goes to</span><span class="tlabel"><b>${esc(target.label)}</b></span><span class="hint">Shoot with the laser, or type the value.</span>${target.key!=="wall"?'<button class="btn small" id="clrtarget">Stop</button>':""}`;
+  const c=$("#clrtarget");if(c)c.onclick=()=>{setTarget(null);if(state.step===2)render()};
+}
+$("#lconnect").onclick=()=>{if(LZ.dev&&LZ.dev.gatt&&LZ.dev.gatt.connected){LZ.dev.gatt.disconnect()}else laserConnect()};
+if(!navigator.bluetooth){$("#lv").textContent="Manual entry"}
+
+/* =====================================================================
+   6. RAIL + SITE PICKER
+   ===================================================================== */
+const STEPS=[["Site & equipment","Devices and models"],["Requirements","Keep, drop, add extras"],["Survey","Check items, laser readings"],["Room plan","Walls by laser, points"],["Report","Findings and export"]];
+function renderRail(){
+  $("#rail").innerHTML=STEPS.map((s,i)=>`<button class="step" data-step="${i}" aria-current="${state.step===i}"><span class="n">${i+1}</span><span><span class="t">${s[0]}</span><span class="s">${s[1]}</span></span></button>`).join("")+
+  `<div class="sep"></div><button class="step" data-step="5" aria-current="${state.step===5}"><span class="n">≡</span><span><span class="t">Library</span><span class="s">Master requirements</span></span></button>`;
+}
+$("#rail").addEventListener("click",e=>{const b=e.target.closest(".step");if(!b)return;go(+b.dataset.step)});
+function go(n){state.step=n;setTarget(null);save();render();window.scrollTo(0,0)}
+function renderSitePicker(){$("#sitesel").innerHTML=state.sites.map((s,i)=>`<option value="${i}" ${i===state.cur?"selected":""}>${esc(s.name)}</option>`).join("")}
+$("#sitesel").onchange=e=>{state.cur=+e.target.value;setTarget(null);save();render()};
+$("#newsite").onclick=()=>{state.sites.push(blankSite("New site "+(state.sites.length+1)));state.cur=state.sites.length-1;state.step=0;save();render();toast("New site created")};
+
+/* =====================================================================
+   7. VIEWS
+   ===================================================================== */
+function vSite(){
+  const s=site();
+  return `<div class="eyebrow">Step 1</div><h1>Site and equipment</h1>
+  <p class="lede">Name the site and pick the equipment. Each device brings its full requirement list from the master library.</p>
+  <div class="card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px">
+    <label>Site / room<br><input type="text" id="f-name" value="${esc(s.name)}" style="width:100%"></label>
+    <label>Location<br><input type="text" id="f-loc" value="${esc(s.loc)}" style="width:100%"></label>
+    <label>Survey date<br><input type="date" id="f-date" value="${esc(s.date)}" style="width:100%"></label>
+    <label>Surveyed by<br><input type="text" id="f-surveyor" value="${esc(s.surveyor)}" style="width:100%" placeholder="Name"></label>
+  </div>
+  <h2 style="margin-bottom:10px">Equipment${state.libRaw?"":'<span class="example">Example library</span>'}</h2>
+  <div class="devices">${Object.entries(LIB).map(([k,d])=>`<button class="dev" data-dev="${esc(k)}" aria-pressed="${s.devices.includes(k)}"><b>${esc(d.name)}</b><span class="count">${d.reqs.length} requirements</span></button>`).join("")}</div>
+  ${s.devices.length?`<div class="models">${s.devices.map(d=>`<label>${esc(LIB[d]?.name||d)} model<br><input type="text" data-model="${esc(d)}" value="${esc(s.models[d]||"")}" placeholder="Manufacturer and model" style="width:100%"></label>`).join("")}</div>`:""}
+  <div class="row"><button class="btn primary" data-go="1">Continue to requirements →</button>
+  <span style="flex:1"></span><button class="btn small" id="dupsite">Duplicate site</button><button class="btn small warn" id="delsite">Delete site</button></div>`;
+}
+function vReqs(){
+  const s=site();if(!s.devices.length)return empty("No equipment chosen","Pick at least one device in step 1.",0);
+  let h=`<div class="eyebrow">Step 2</div><h1>Requirements for this site</h1>
+  <p class="lede">Everything starts as <b>Required</b>. Mark what this site doesn't need and add site-specific extras. The survey is built from what remains.</p>`;
+  s.devices.forEach(d=>{const dev=LIB[d];if(!dev)return;const kept=dev.reqs.filter(r=>(s.sel[r.id]||"req")==="req").length;
+    h+=`<section class="group"><header><h2>${esc(dev.name)}</h2><span class="meta mono">${kept}/${dev.reqs.length} kept · ${s.extras.filter(x=>x.device===d).length} extra</span></header>`;
+    [...new Set(dev.reqs.map(r=>r.cat))].forEach(c=>{h+=`<div class="cathead eyebrow">${esc(c)}</div>`;
+      dev.reqs.filter(r=>r.cat===c).forEach(r=>{const v=s.sel[r.id]||"req";
+        h+=`<div class="req ${v==="na"?"off":""}"><div class="txt"><b>${esc(r.text)}</b><span class="spec">${esc(r.spec)}</span><div class="tags"><span class="tag ${r.type==="M"?"mand":""}">${TYPE[r.type]||r.type}</span><span class="tag">${esc(r.resp)}</span><span class="tag">${esc(r.verify)}</span>${r.op?'<span class="tag auto">Auto pass/fail</span>':""}${r.link?`<span class="tag auto">From room plan</span>`:""}</div></div>
+        <div class="seg"><button data-sel="${r.id}" data-v="req" class="${v==="req"?"on-req":""}">Required</button><button data-sel="${r.id}" data-v="na" class="${v==="na"?"on-na":""}">Not needed</button></div></div>`})});
+    s.extras.filter(x=>x.device===d).forEach(x=>{h+=`<div class="req"><div class="txt"><b>${esc(x.text)}</b><span class="spec">${esc(x.spec)}</span><div class="tags"><span class="tag extra">Site extra</span><span class="tag">${esc(x.cat)}</span><span class="tag">${esc(x.resp)}</span></div></div><button class="btn small" data-delx="${x.id}">Remove</button></div>`});
+    h+=`<div class="addrow"><select id="xc-${d}">${CATS.map(c=>`<option>${c}</option>`).join("")}</select><input type="text" id="xt-${d}" placeholder="Extra requirement"><input type="text" id="xs-${d}" placeholder="Spec / value"><button class="btn" data-addx="${esc(d)}">+ Add extra</button></div></section>`});
+  return h+`<button class="btn primary" data-go="2">Continue to survey →</button>`;
+}
+function laserable(r){return r.verify==="Laser"&&!r.link}
+function vSurvey(){
+  const s=site(),st=stats(s);if(!st.total)return empty("Nothing to survey yet","Choose equipment in step 1.",0);
+  const w=n=>n/st.total*100,f=state.filter||"all";
+  let list=st.a;if(f==="open")list=list.filter(r=>!(s.survey[r.id]||{}).status);if(f==="bad")list=list.filter(r=>(s.survey[r.id]||{}).status==="bad");if(f==="laser")list=list.filter(r=>r.verify==="Laser");
+  let h=`<div class="eyebrow">Step 3${s.visit>1?" · Visit "+s.visit:""}</div><h1>On-site survey</h1>
+  <p class="lede">Tap <b>◎</b> on an item and shoot with the laser. The reading fills in, the item passes or fails by itself, and the next laser item is selected. Items linked to the room plan fill from step 4.</p>
+  <div class="statusbar"><span class="mono">${st.total-st.open}/${st.total} checked</span><div class="meter"><i style="width:${w(st.ok)}%;background:var(--ok)"></i><i style="width:${w(st.bad)}%;background:var(--bad)"></i><i style="width:${w(st.na)}%;background:var(--na)"></i></div><span style="color:var(--ok)">${st.ok} OK</span><span style="color:var(--bad)">${st.bad} not OK</span><span>${st.na} N/A</span></div>
+  <div class="row filters noprint" style="margin-bottom:14px">${[["all","All"],["open","Open"],["bad","Not OK"],["laser","Laser items"]].map(([k,l])=>`<button class="btn small" data-filter="${k}" aria-pressed="${f===k}">${l}</button>`).join("")}
+  <span style="flex:1"></span><button class="btn small primary" id="laserrun">◎ Start laser run</button></div>`;
+  const by={};list.forEach(r=>(by[r.cat]=by[r.cat]||[]).push(r));
+  if(!list.length)h+=`<div class="card hint">No items match this filter.</div>`;
+  for(const c in by){h+=`<section class="group"><header><h2>${esc(c)}</h2><span class="meta mono">${by[c].filter(r=>(s.survey[r.id]||{}).status).length}/${by[c].length}</span></header>`;
+    by[c].forEach(r=>{const v=s.survey[r.id]||{};const st2=v.status||"";const tg=target&&target.key===r.id;
+      const meas=r.link?`<div class="linked">${v.measured?esc(v.measured)+(r.link==="area"?" m²":" m"):"—"} · from room plan</div>`
+        :`<div class="meas"><input type="text" inputmode="decimal" id="m-${r.id}" data-meas="${r.id}" placeholder="${r.verify==="Laser"?"Laser reading (m)":r.verify==="Meter"?"Meter reading":"Note / value"}" value="${esc(v.measured)}">${r.verify==="Laser"||r.op?`<button class="tg" data-tgt="${r.id}" aria-pressed="${tg}" aria-label="Send next laser reading here">◎</button>`:""}</div>`;
+      h+=`<div class="req ${tg?"targeted":""}" id="row-${r.id}"><div class="txt"><b>${esc(r.text)}</b><span class="spec">Required: ${esc(r.spec)}</span>
+        <div class="tags">${r.type==="X"?'<span class="tag extra">Site extra</span>':""}<span class="tag">${esc(r.resp)}</span>${v.auto&&st2?'<span class="tag auto">Auto-checked</span>':""}${v.carried?'<span class="tag">OK last visit</span>':""}</div>
+        ${v.prev?`<div class="prev">Last visit: ${esc(v.prev.comment||"Not OK")}${v.prev.measured?" ("+esc(v.prev.measured)+")":""}</div>`:""}</div>
+        <div class="seg"><button data-st="${r.id}" data-v="ok" class="${st2==="ok"?"on-ok":""}">OK</button><button data-st="${r.id}" data-v="bad" class="${st2==="bad"?"on-bad":""}">Not OK</button><button data-st="${r.id}" data-v="na" class="${st2==="na"?"on-na":""}">N/A</button></div>
+        <div class="sx">${meas}<textarea id="c-${r.id}" data-com="${r.id}" rows="1" placeholder="Comment / action needed (tap the keyboard mic to dictate)">${esc(v.comment)}</textarea>
+        <div class="photos">${(v.photos||[]).map(p=>`<img data-ph="${p}" data-view="${p}" data-item="${r.id}" alt="Photo">`).join("")}<label class="btn small photobtn">+ Photo<input type="file" accept="image/*" capture="environment" data-photo="${r.id}"></label></div></div></div>`});
+    h+=`</section>`}
+  return h+`<button class="btn primary" data-go="3">Continue to room plan →</button>`;
+}
+function surveyTarget(r){return {key:r.id,label:r.text+(r.device?" ("+(LIB[r.device]?.name||r.device)+")":""),apply:v=>{const s=site();setMeasured(s,r,f2(v),true);save();
+  const nxt=applicable(s).find(x=>laserable(x)&&x.id!==r.id&&!(s.survey[x.id]||{}).measured&&(s.survey[x.id]||{}).status!=="na");
+  if(nxt){setTarget(surveyTarget(nxt))}else{setTarget(null);toast("All laser items measured")}
+  render();scrollToTarget()}}}
+function scrollToTarget(){if(target){const el=document.getElementById("row-"+target.key);if(el)el.scrollIntoView({behavior:"smooth",block:"center"})}}
+
+/* ---- room plan ---- */
+let tool="power",view=null,pop=null,drawing=null;
+const SYM={power:{c:"#c26a12",l:"Power socket",k:"P"},data:{c:"#0b6e7f",l:"Data point",k:"D"},eoff:{c:"#c0392b",l:"Emergency off",k:"E"},door:{c:"#5b7079",l:"Door",k:"⇆"},equip:{c:"#1f8a4c",l:"Equipment footprint",k:""}};
+function vPlan(){
+  const s=site(),p=s.plan,area=planArea(p);
+  return `<div class="eyebrow">Step 4</div><h1>Room plan</h1>
+  <p class="lede">Stand at a corner and shoot the first wall. Each reading draws a wall to scale and turns right for the next one. After the last wall the room closes by itself, and the area, ceiling and door widths go straight into the checklist.</p>
+  <div class="planwrap"><div style="min-width:0">
+    <div class="toolbar noprint">${[["power","Power"],["data","Data"],["eoff","E-off"],["door","Door"],["equip","Equipment"],["pen","Pen"],["erase","Erase"]].map(([k,l])=>`<button class="tool" data-tool="${k}" aria-pressed="${tool===k}">${l}</button>`).join("")}</div>
+    <div class="canvasbox" id="cbox"><canvas id="plan" aria-label="Room plan"></canvas></div>
+    <p class="hint">Tap the plan to place the selected point. Tap equipment again to rotate it. Pen draws notes with the Apple Pencil.</p>
+  </div>
+  <aside class="side noprint">
+    <div class="card"><h2 style="margin-bottom:8px">Walls by laser</h2>
+      <div class="hint" style="margin-bottom:6px">Direction of the next wall</div>
+      <div class="dirpad">${ARROW.map((a,i)=>`<button class="btn" data-dir="${i}" aria-pressed="${p.nextDir===i&&!p.closed}" ${p.closed?"disabled":""}>${a}</button>`).join("")}</div>
+      <label class="row hint" style="margin:8px 0"><input type="checkbox" id="autoturn" ${p.autoTurn?"checked":""}> Turn right after each wall</label>
+      <div class="row"><input type="text" inputmode="decimal" id="wallmanual" placeholder="Length (m)" style="width:110px" ${p.closed?"disabled":""}><button class="btn small" id="addwall" ${p.closed?"disabled":""}>Add wall</button></div>
+      <ol class="walllist" style="margin-top:10px">${p.walls.map((w,i)=>`<li><span>Wall ${i+1}</span><span>${ARROW[w.dir]}</span><input type="text" inputmode="decimal" data-wlen="${i}" value="${w.len.toFixed(3)}"></li>`).join("")||'<li class="hint" style="display:block">No walls yet.</li>'}</ol>
+      <div class="row" style="margin-top:10px"><button class="btn small" id="undowall" ${p.walls.length?"":"disabled"}>Undo wall</button><button class="btn small" id="closeroom" ${p.closed||p.walls.length<2?"disabled":""}>Close room</button><button class="btn small warn" id="clearplan">Clear</button></div>
+    </div>
+    <div class="card"><h2 style="margin-bottom:8px">Room figures</h2><dl class="kv">
+      <dt>Floor area</dt><dd>${area!==null?f2(area)+" m²":"—"}</dd>
+      <dt>Perimeter</dt><dd>${p.walls.length?f2(planPerim(p))+" m":"—"}</dd>
+      <dt>Closure error</dt><dd>${p.closed&&p.gap!=null?f2(p.gap)+" m":"—"}</dd></dl>
+      <div style="margin-top:10px" class="hint">Ceiling height</div>
+      <div class="meas"><input type="text" inputmode="decimal" id="ceil" value="${esc(p.ceiling)}" placeholder="Shoot floor to ceiling"><button class="tg" id="ceiltg" aria-pressed="${target&&target.key==="ceiling"}">◎</button></div>
+    </div>
+    <div class="card"><div class="legend">${Object.values(SYM).map(x=>`<i style="background:${x.c}"></i><span>${x.l}</span>`).join("")}</div></div>
+  </aside></div>
+  <div class="row" style="margin-top:16px"><button class="btn primary" data-go="4">Continue to report →</button></div>`;
+}
+function planTargetDefault(){const p=site().plan;
+  if(!p.closed)return {key:"wall",label:`Wall ${p.walls.length+1} ${ARROW[p.nextDir]}`,apply:v=>{addWall(v);render()}};
+  if(num(p.ceiling)===null)return ceilTarget();return null}
+function ceilTarget(){return {key:"ceiling",label:"Ceiling height",apply:v=>{site().plan.ceiling=f2(v);save();setTarget(planTargetDefault());render()}}}
+
+function drawPlan(ctx,W,H,s,opt={}){
+  const p=s.plan,css=getComputedStyle(document.documentElement),C=n=>css.getPropertyValue(n).trim()||"#888";
+  const pts=planPts(p);
+  let xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]);
+  p.syms.forEach(o=>{if(o.t==="equip"){equipRect(o).forEach(c=>{xs.push(c[0]);ys.push(c[1])})}else{xs.push(o.x);ys.push(o.y)}});
+  if(p.walls.length===0){xs.push(0,6);ys.push(0,5)}
+  let minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const bw=Math.max(maxx-minx,2),bh=Math.max(maxy-miny,2),M=56;
+  const sc=Math.min((W-2*M)/bw,(H-2*M)/bh,140);
+  const ox=M-minx*sc+((W-2*M)-bw*sc)/2, oy=M-miny*sc+((H-2*M)-bh*sc)/2;
+  const X=x=>ox+x*sc,Y=y=>oy+y*sc; if(!opt.export)view={sc,ox,oy};
+  ctx.fillStyle=opt.export?"#ffffff":C("--panel");ctx.fillRect(0,0,W,H);
+  const gx0=Math.floor((0-ox)/sc*2)/2,gx1=(W-ox)/sc,gy0=Math.floor((0-oy)/sc*2)/2,gy1=(H-oy)/sc;
+  for(let g=gx0;g<=gx1;g+=0.5){ctx.strokeStyle=Math.abs(g%1)<1e-6?(opt.export?"#cfdfe2":C("--grid-major")):(opt.export?"#e9f1f2":C("--grid"));ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(Math.round(X(g))+.5,0);ctx.lineTo(Math.round(X(g))+.5,H);ctx.stroke()}
+  for(let g=gy0;g<=gy1;g+=0.5){ctx.strokeStyle=Math.abs(g%1)<1e-6?(opt.export?"#cfdfe2":C("--grid-major")):(opt.export?"#e9f1f2":C("--grid"));ctx.beginPath();ctx.moveTo(0,Math.round(Y(g))+.5);ctx.lineTo(W,Math.round(Y(g))+.5);ctx.stroke()}
+  const ink=opt.export?"#0f2a33":C("--ink"),acc=opt.export?"#0b6e7f":C("--accent"),bg=opt.export?"#ffffff":C("--panel");
+  if(p.closed&&pts.length>3){ctx.fillStyle=opt.export?"rgba(11,110,127,.06)":"rgba(11,110,127,.08)";ctx.beginPath();pts.forEach((q,i)=>i?ctx.lineTo(X(q[0]),Y(q[1])):ctx.moveTo(X(q[0]),Y(q[1])));ctx.closePath();ctx.fill()}
+  ctx.strokeStyle=opt.export?"#7a8b90":C("--muted");ctx.lineCap="round";ctx.lineJoin="round";ctx.lineWidth=2;
+  p.ink.forEach(st=>{ctx.beginPath();st.forEach((q,i)=>i?ctx.lineTo(X(q[0]),Y(q[1])):ctx.moveTo(X(q[0]),Y(q[1])));ctx.stroke()});
+  ctx.strokeStyle=ink;ctx.lineWidth=7;ctx.lineCap="square";
+  for(let i=0;i<pts.length-1;i++){ctx.beginPath();ctx.moveTo(X(pts[i][0]),Y(pts[i][1]));ctx.lineTo(X(pts[i+1][0]),Y(pts[i+1][1]));ctx.stroke()}
+  ctx.font="600 13px JetBrains Mono, Menlo, monospace";ctx.textAlign="center";ctx.textBaseline="middle";
+  p.walls.forEach((w,i)=>{const a=pts[i],b=pts[i+1],d=DIRS[w.dir],nx=d[1],ny=-d[0];
+    const mx=X((a[0]+b[0])/2)+nx*24,my=Y((a[1]+b[1])/2)+ny*24;const t=w.len.toFixed(2)+" m";const tw=ctx.measureText(t).width+12;
+    ctx.fillStyle=acc;ctx.fillRect(mx-tw/2,my-11,tw,22);ctx.fillStyle=bg;ctx.fillText(t,mx,my)});
+  if(!p.closed){const e=pts[pts.length-1],d=DIRS[p.nextDir];const ex=X(e[0]),ey=Y(e[1]);
+    ctx.fillStyle=opt.export?"#c26a12":C("--signal");ctx.beginPath();ctx.arc(ex,ey,7,0,7);ctx.fill();
+    if(!opt.export){ctx.strokeStyle=C("--signal");ctx.lineWidth=3;ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex+d[0]*60,ey+d[1]*60);ctx.stroke();ctx.setLineDash([]);
+      ctx.beginPath();const tx=ex+d[0]*70,ty=ey+d[1]*70;ctx.moveTo(tx+d[0]*10,ty+d[1]*10);ctx.lineTo(tx-d[1]*8,ty+d[0]*8);ctx.lineTo(tx+d[1]*8,ty-d[0]*8);ctx.closePath();ctx.fill()}}
+  const area=planArea(p);
+  if(area!==null){const cx=pts.slice(0,-1).reduce((t,q)=>t+q[0],0)/(pts.length-1),cy=pts.slice(0,-1).reduce((t,q)=>t+q[1],0)/(pts.length-1);
+    ctx.font="800 22px Archivo, Arial, sans-serif";ctx.fillStyle=ink;ctx.fillText(f2(area)+" m²",X(cx),Y(cy)-(p.syms.some(o=>o.t==="equip")?0:0));
+    if(num(p.ceiling)!==null){ctx.font="600 12px JetBrains Mono, monospace";ctx.fillStyle=opt.export?"#5b7079":C("--muted");ctx.fillText("ceiling "+f2(num(p.ceiling))+" m",X(cx),Y(cy)+20)}}
+  p.syms.forEach(o=>{const d=SYM[o.t];if(!d)return;
+    if(o.t==="equip"){const r=equipRect(o),fit=equipFits(o,p),col=fit===false?"#c0392b":d.c;ctx.globalAlpha=.16;ctx.fillStyle=col;ctx.beginPath();r.forEach((c,i)=>i?ctx.lineTo(X(c[0]),Y(c[1])):ctx.moveTo(X(c[0]),Y(c[1])));ctx.closePath();ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.setLineDash([7,5]);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=col;ctx.font="700 12px Archivo, Arial, sans-serif";ctx.fillText((LIB[o.dev]?.name||"Equipment")+(fit===false?" · does not fit":""),X(o.x),Y(o.y)+(area!==null?32:0));return}
+    const x=X(o.x),y=Y(o.y);ctx.fillStyle=d.c;ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.fill();
+    ctx.fillStyle="#fff";ctx.font="700 11px JetBrains Mono, monospace";ctx.fillText(d.k,x,y+1);
+    const lab=o.t==="door"?(o.w?"W "+o.w:""):(o.h?"h "+o.h:"");
+    if(lab){ctx.font="600 11.5px JetBrains Mono, monospace";const tw=ctx.measureText(lab).width+8;ctx.fillStyle=bg;ctx.fillRect(x+14,y-9,tw,18);ctx.fillStyle=ink;ctx.textAlign="left";ctx.fillText(lab,x+18,y);ctx.textAlign="center"}});
+  if(opt.export){ctx.font="600 11px JetBrains Mono, monospace";ctx.fillStyle="#5b7079";ctx.textAlign="left";ctx.fillText("Grid 0.5 m · "+s.name,12,H-12);ctx.textAlign="center"}
+}
+function setupPlan(){
+  const cv=$("#plan");if(!cv)return;const box=$("#cbox");const dpr=window.devicePixelRatio||1;
+  const W=box.clientWidth,H=Math.round(Math.min(Math.max(W*0.78,320),680));
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.height=H+"px";const ctx=cv.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  const s=site(),p=s.plan;const redraw=()=>drawPlan(ctx,W,H,s);redraw();
+  const toM=e=>{const r=cv.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;return [(px-view.ox)/view.sc,(py-view.oy)/view.sc,px,py]};
+  cv.onpointerdown=e=>{e.preventDefault();closePop();const [mx,my,px,py]=toM(e);
+    if(tool==="pen"){drawing=[[mx,my]];p.ink.push(drawing);cv.setPointerCapture(e.pointerId);return}
+    if(tool==="erase"){let best=-1,bd=0.5/1;p.syms.forEach((o,i)=>{const d=Math.hypot(o.x-mx,o.y-my);if(d<Math.max(bd,0.6)&&(best<0||d<bd)){best=i;bd=d}});
+      if(best>=0){p.syms.splice(best,1)}else{const si=p.ink.findIndex(st=>st.some(q=>Math.hypot(q[0]-mx,q[1]-my)<0.3));if(si>=0)p.ink.splice(si,1)}save();redraw();return}
+    if(tool==="equip"){const ex=p.syms.find(o=>o.t==="equip"&&inPoly([mx,my],equipRect(o)));if(ex){ex.rot=ex.rot?0:1;save();redraw();return}
+      const dev=s.devices[0];if(!dev){toast("Pick equipment in step 1 first");return}p.syms.push({t:"equip",x:Math.round(mx*10)/10,y:Math.round(my*10)/10,rot:0,dev});save();redraw();
+      const o=p.syms[p.syms.length-1];if(equipFits(o,p)===false)toast("Equipment footprint does not fit here");return}
+    const o={t:tool,x:Math.round(mx*20)/20,y:Math.round(my*20)/20};if(tool==="door")o.w="";else o.h="";p.syms.push(o);save();redraw();openPop(o,px,py,redraw)};
+  cv.onpointermove=e=>{if(!drawing)return;const [mx,my]=toM(e);drawing.push([mx,my]);redraw()};
+  cv.onpointerup=()=>{if(drawing){drawing=null;save()}};
+  window.onresize=()=>{if(state.step===3){clearTimeout(setupPlan.t);setupPlan.t=setTimeout(()=>{if($("#plan"))setupPlan()},150)}};
+}
+function openPop(o,px,py,redraw){
+  const box=$("#cbox");const isDoor=o.t==="door";const key=isDoor?"w":"h";const label=isDoor?"Door clear width (m)":SYM[o.t].l+" height from floor (m)";
+  pop=document.createElement("div");pop.className="pop";
+  pop.innerHTML=`<b>${SYM[o.t].l}</b><span class="hint">${label}. Shoot with the laser or type it.</span><div class="row"><input type="text" inputmode="decimal" id="popin" value="${esc(o[key])}"><button class="btn small primary" id="popok">Set</button><button class="btn small" id="popx">Skip</button></div>`;
+  box.appendChild(pop);pop.style.left=Math.max(6,Math.min(px-115,box.clientWidth-240))+"px";pop.style.top=Math.max(6,Math.min(py+18,box.clientHeight-130))+"px";
+  const commit=val=>{o[key]=val===""?"":f2(num(val)??0);save();closePop();setTarget(planTargetDefault());render()};
+  $("#popok").onclick=()=>commit($("#popin").value.trim());$("#popx").onclick=()=>{closePop();setTarget(planTargetDefault())};
+  $("#popin").onkeydown=e=>{if(e.key==="Enter")commit(e.target.value.trim())};
+  setTarget({key:"pop",label:label,apply:v=>commit(String(v))});
+}
+function closePop(){if(pop){pop.remove();pop=null}}
+
+/* ---- report ---- */
+function planImage(s,W=900,H=640){try{const c=document.createElement("canvas");c.width=W;c.height=H;drawPlan(c.getContext("2d"),W,H,s,{export:true});return c.toDataURL("image/png")}catch(e){return ""}}
+function vReport(){
+  const s=site(),st=stats(s);const fails=st.a.filter(r=>(s.survey[r.id]||{}).status==="bad"),open=st.a.filter(r=>!(s.survey[r.id]||{}).status);
+  const byResp={};fails.forEach(r=>(byResp[r.resp]=byResp[r.resp]||[]).push(r));
+  const area=planArea(s.plan);const img=s.plan.walls.length?planImage(s):"";
+  const photos=st.a.flatMap(r=>((s.survey[r.id]||{}).photos||[]).map(p=>({p,r})));
+  return `<div class="eyebrow">Site survey report${s.visit>1?" · Visit "+s.visit:""}</div><h1>${esc(s.name)}</h1>
+  <p class="lede">${esc(s.loc||"Location not set")} · ${esc(s.date)} · ${s.devices.map(d=>esc((LIB[d]?.name||d)+(s.models[d]?" ("+s.models[d]+")":""))).join(", ")||"No equipment"}${s.surveyor?" · Surveyed by "+esc(s.surveyor):""}${s.example?'<span class="example">Example data</span>':""}</p>
+  <div class="row noprint" style="margin-bottom:16px"><button class="btn primary" id="print">Print / save PDF</button><button class="btn" id="dlcsv">Export Excel (CSV)</button><button class="btn" id="dlplan" ${img?"":"disabled"}>Save plan image</button><button class="btn" id="backup">Backup site</button><button class="btn" id="restore">Restore</button><button class="btn" id="visit2" ${fails.length||open.length?"":"disabled"}>Start next visit</button></div>
+  <div class="tiles"><div class="tile hero"><div class="k">Site readiness</div><div class="v">${st.pct}%</div><div style="font-size:12px;opacity:.75">of checked items pass</div></div>
+    <div class="tile"><div class="k">Applicable items</div><div class="v">${st.total}</div></div>
+    <div class="tile"><div class="k">Not OK</div><div class="v" style="color:var(--bad)">${st.bad}</div></div>
+    <div class="tile"><div class="k">Still open</div><div class="v" style="color:var(--na)">${st.open}</div></div>
+    <div class="tile"><div class="k">Floor area</div><div class="v">${area!==null?f2(area):"—"}<span style="font-size:14px"> m²</span></div></div></div>
+  <div class="cols"><div style="min-width:0;display:flex;flex-direction:column;gap:16px">
+    <div><h2 style="margin-bottom:8px">Actions required, by owner</h2>${fails.length?Object.entries(byResp).map(([o,rs])=>`<div class="tablewrap" style="margin-bottom:10px"><table><thead><tr><th colspan="3">${esc(o)} · ${rs.length} action${rs.length>1?"s":""}</th></tr></thead><tbody>${rs.map(r=>{const v=s.survey[r.id];return `<tr><td><b>${esc(r.text)}</b><br><span style="color:var(--muted)">${esc(v.comment||"")}</span></td><td class="mono">Req. ${esc(r.spec)}</td><td class="mono">${v.measured?"Found "+esc(v.measured):""}</td></tr>`}).join("")}</tbody></table></div>`).join(""):`<div class="card hint">No failed items.</div>`}</div>
+    <div><h2 style="margin-bottom:8px">Not yet checked (${open.length})</h2><div class="tablewrap"><table><tbody>${open.map(r=>`<tr><td>${esc(r.text)}</td><td class="mono">${esc(r.spec)}</td><td><span class="pill open">Open</span></td></tr>`).join("")||'<tr><td class="hint">Everything has been checked.</td></tr>'}</tbody></table></div></div>
+    <div><h2 style="margin-bottom:8px">Full checklist</h2><div class="tablewrap"><table><thead><tr><th>Item</th><th>Required</th><th>Reading</th><th>Status</th></tr></thead><tbody>${st.a.map(r=>{const v=s.survey[r.id]||{};const p={ok:["ok","OK"],bad:["bad","Not OK"],na:["open","N/A"]}[v.status]||["open","Open"];return `<tr><td>${esc(r.text)}<br><span class="hint">${esc(r.cat)} · ${esc(r.resp)}</span></td><td class="mono">${esc(r.spec)}</td><td class="mono">${esc(v.measured||"")}</td><td><span class="pill ${p[0]}">${p[1]}</span></td></tr>`}).join("")}</tbody></table></div></div>
+  </div><div style="min-width:0;display:flex;flex-direction:column;gap:16px">
+    <div class="card"><h2 style="margin-bottom:8px">Room plan</h2>${img?`<img class="planimg" src="${img}" alt="Room plan with dimensions">`:'<p class="hint">No room plan yet.</p>'}</div>
+    ${photos.length?`<div class="card"><h2 style="margin-bottom:8px">Photos</h2><div class="gallery">${photos.map(x=>`<figure><img data-ph="${x.p}" data-view="${x.p}" alt=""><figcaption>${esc(x.r.text)}</figcaption></figure>`).join("")}</div></div>`:""}
+    <div class="card noprint"><h2 style="margin-bottom:6px">Comments and status sheet</h2><p class="hint" style="margin:0 0 8px">Copy and paste into your Excel tracker.</p><pre class="csv" id="tsv">${esc(toTSV(s,st))}</pre><button class="btn small" id="copytsv" style="margin-top:8px">Copy table</button></div>
+  </div></div>
+  <div class="signoff"><div>Surveyed by: ${esc(s.surveyor)}</div><div>Site representative (MOH)</div><div>Date: ${esc(s.date)}</div></div>`;
+}
+function rows(s,st){const R=[["Site","Visit","Device","Model","Category","Requirement","Required","Type","Responsibility","Status","Reading","Comment"]];
+  st.a.forEach(r=>{const v=s.survey[r.id]||{};R.push([s.name,s.visit||1,LIB[r.device]?.name||r.device,s.models[r.device]||"",r.cat,r.text,r.spec,TYPE[r.type]||r.type,r.resp,{ok:"OK",bad:"Not OK",na:"N/A"}[v.status]||"Open",v.measured||"",v.comment||""])});return R}
+function toTSV(s,st){return rows(s,st).map(r=>r.map(c=>String(c).replace(/[\t\n]/g," ")).join("\t")).join("\n")}
+function toCSV(s,st){return "﻿"+rows(s,st).map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\r\n")}
+async function exportFile(name,data,mime){
+  const blob=data instanceof Blob?data:new Blob([data],{type:mime});
+  try{const file=new File([blob],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return}}catch(e){if(e.name==="AbortError")return}
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);toast("Saved "+name);
+}
+const safeName=s=>s.name.replace(/[^\w\-]+/g,"_").slice(0,40);
+async function backupSite(s){const copy=JSON.parse(JSON.stringify(s));copy.photoData={};for(const r in copy.survey){for(const p of copy.survey[r].photos||[]){const d=await getPhoto(p);if(d)copy.photoData[p]=d}}
+  await exportFile(safeName(s)+"_backup.json",JSON.stringify(copy),"application/json")}
+function restorePrompt(){const inp=document.createElement("input");inp.type="file";inp.accept=".json,application/json";inp.onchange=async()=>{try{const t=await inp.files[0].text();const s=JSON.parse(t);if(!s.survey||!s.plan)throw 0;
+  for(const p in (s.photoData||{}))await putPhoto(p,s.photoData[p]);delete s.photoData;s.id="S"+Date.now().toString(36);state.sites.push(s);state.cur=state.sites.length-1;save();render();toast("Site restored")}catch(e){toast("That file is not a Survey Studio backup")}};inp.click()}
+function nextVisit(){const s=site();const n=JSON.parse(JSON.stringify(s));n.id="S"+Date.now().toString(36);n.visit=(s.visit||1)+1;n.example=false;
+  n.name=s.name.replace(/ · Visit \d+$/,"")+" · Visit "+n.visit;n.date=new Date().toISOString().slice(0,10);
+  for(const k in n.survey){const v=n.survey[k];if(v.status==="bad")n.survey[k]={status:"",measured:"",comment:"",photos:[],prev:{comment:v.comment,measured:v.measured}};else if(v.status==="ok"){v.carried=true}}
+  state.sites.push(n);state.cur=state.sites.length-1;state.step=2;state.filter="open";save();render();toast("Visit "+n.visit+" created with open and failed items")}
+
+/* ---- library ---- */
+function vLibrary(){
+  const head=["Device","Category","Requirement","Spec","Type","Responsibility","Verify","Rule","Min","Max","Link"];
+  const tsv=[head.join("\t")].concat(Object.entries(LIB).flatMap(([k,d])=>d.reqs.map(r=>[d.name,r.cat,r.text,r.spec,r.type,r.resp,r.verify,r.op,r.min??"",r.max??"",r.link].join("\t")))).join("\n");
+  return `<div class="eyebrow">Master library</div><h1>Requirements library</h1>
+  <p class="lede">${state.libRaw?"You are using your own library.":"These are <b>example values</b>. Replace them with Experia's real requirements."} Keep the library in Excel with the columns below, then copy all the rows (with the header) and paste them here.</p>
+  <div class="card" style="margin-bottom:14px"><h2 style="margin-bottom:8px">Column guide</h2><div class="tablewrap"><table><tbody>
+    <tr><td><b>Type</b></td><td>M = Mandatory, C = Conditional, O = Optional</td></tr>
+    <tr><td><b>Verify</b></td><td>Laser, Meter, Visual or Document. Laser items take readings straight from the GLM.</td></tr>
+    <tr><td><b>Rule / Min / Max</b></td><td><span class="mono">&gt;=</span> with Min, <span class="mono">&lt;=</span> with Max, or <span class="mono">range</span> with both. The app passes or fails the reading by itself.</td></tr>
+    <tr><td><b>Link</b></td><td><span class="mono">area</span>, <span class="mono">ceiling</span> or <span class="mono">door</span> to fill the item from the room plan.</td></tr></tbody></table></div></div>
+  <div class="card"><h2 style="margin-bottom:8px">Paste from Excel</h2><textarea id="libpaste" rows="8" placeholder="Paste rows copied from Excel here" style="font-family:var(--f-mono);font-size:12.5px"></textarea>
+  <div class="row" style="margin-top:10px"><button class="btn primary" id="libimport">Use this library</button><button class="btn" id="libcopy">Copy current library</button>${state.libRaw?'<button class="btn warn" id="libreset">Back to example library</button>':""}</div>
+  <pre class="csv" id="libtsv" style="margin-top:12px">${esc(tsv)}</pre></div>`;
+}
+function importLib(text){
+  const lines=text.trim().split(/\r?\n/).map(l=>l.split("\t"));if(lines.length<2)throw new Error("Paste the header row and at least one requirement");
+  const h=lines[0].map(x=>x.trim().toLowerCase());const ix=n=>h.indexOf(n);
+  if(ix("device")<0||ix("requirement")<0)throw new Error("The header needs at least Device and Requirement columns");
+  const raw={};lines.slice(1).forEach(c=>{const g=n=>(ix(n)>=0?(c[ix(n)]||"").trim():"");const dev=g("device");if(!dev||!g("requirement"))return;
+    const key=dev.toUpperCase().replace(/[^A-Z0-9]+/g,"_");const def=Object.values(DEFAULT_LIB).find(d=>d.name.toLowerCase()===dev.toLowerCase());
+    raw[key]=raw[key]||{name:dev,foot:def?def.foot:[2,4],reqs:[]};
+    raw[key].reqs.push([g("category")||"Other",g("requirement"),g("spec"),(g("type")||"M").toUpperCase().slice(0,1),g("responsibility")||"MOH",g("verify")||"Visual",g("rule"),g("min"),g("max"),g("link").toLowerCase()])});
+  if(!Object.keys(raw).length)throw new Error("No requirement rows found");return raw;
+}
+
+function empty(t,d,step){return `<div class="card"><h2>${t}</h2><p class="lede" style="margin:6px 0 14px">${d}</p><button class="btn primary" data-go="${step}">Go to step ${step+1}</button></div>`}
+
+/* =====================================================================
+   8. RENDER + EVENTS
+   ===================================================================== */
+function render(){
+  renderSitePicker();renderRail();closePop();
+  $("#main").innerHTML=[vSite,vReqs,vSurvey,vPlan,vReport,vLibrary][state.step]();
+  if(state.step===3){setupPlan();if(!target||target.key==="wall"||target.key==="pop"||(target.key==="ceiling"&&num(site().plan.ceiling)!==null))setTarget(planTargetDefault())}
+  else if(state.step!==2&&target)setTarget(null);
+  renderTargetBar();hydratePhotos();
+  document.documentElement.style.setProperty("--topH",$("#top").offsetHeight+"px");
+  bindStep();
+}
+function bindStep(){
+  const s=site(),b=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn};
+  b("dupsite",()=>{const n=JSON.parse(JSON.stringify(s));n.id="S"+Date.now().toString(36);n.name+=" (copy)";n.example=false;state.sites.push(n);state.cur=state.sites.length-1;save();render();toast("Site duplicated")});
+  b("delsite",e=>{const btn=e.target;if(!btn.dataset.arm){btn.dataset.arm=1;btn.textContent="Tap again to delete";setTimeout(()=>{btn.textContent="Delete site";delete btn.dataset.arm},2500);return}
+    state.sites.splice(state.cur,1);if(!state.sites.length)state.sites.push(blankSite("New site 1"));state.cur=0;save();render();toast("Site deleted")});
+  b("laserrun",()=>{const nxt=applicable(s).find(x=>laserable(x)&&!(s.survey[x.id]||{}).measured&&(s.survey[x.id]||{}).status!=="na")||applicable(s).find(laserable);
+    if(!nxt){toast("No laser items in this survey");return}setTarget(surveyTarget(nxt));render();scrollToTarget();if(!LZ.dev||!LZ.dev.gatt.connected)toast("Connect the laser, or type readings")});
+  // plan
+  b("addwall",()=>{const v=num($("#wallmanual").value);if(v===null){toast("Type a wall length in metres");return}addWall(v);render()});
+  b("undowall",()=>{const p=s.plan;const w=p.walls.pop();if(w){p.nextDir=w.dir;p.closed=false;p.gap=null}save();render()});
+  b("closeroom",()=>{closeRoom();render()});
+  b("clearplan",e=>{const btn=e.target;if(!btn.dataset.arm){btn.dataset.arm=1;btn.textContent="Tap again";setTimeout(()=>{btn.textContent="Clear";delete btn.dataset.arm},2500);return}s.plan=blankPlan();save();render();toast("Plan cleared")});
+  b("ceiltg",()=>{setTarget(target&&target.key==="ceiling"?planTargetDefault():ceilTarget());render()});
+  const at=$("#autoturn");if(at)at.onchange=()=>{s.plan.autoTurn=at.checked;save()};
+  const ce=$("#ceil");if(ce)ce.onchange=()=>{s.plan.ceiling=ce.value.trim()===""?"":f2(num(ce.value)??0);save();render()};
+  // report
+  b("print",()=>{try{window.print()}catch(e){toast("Printing isn't available here. Use Export instead")}});
+  b("dlcsv",()=>{const st=stats(s);exportFile(safeName(s)+"_survey.csv",toCSV(s,st),"text/csv")});
+  b("dlplan",async()=>{const d=planImage(s,1600,1140);const blob=await (await fetch(d)).blob();exportFile(safeName(s)+"_plan.png",blob,"image/png")});
+  b("backup",()=>backupSite(s));b("restore",restorePrompt);b("visit2",nextVisit);
+  b("copytsv",()=>copyText($("#tsv")));
+  // library
+  b("libimport",()=>{try{const raw=importLib($("#libpaste").value);state.libRaw=raw;LIB=buildLib(raw);save();render();toast("Library loaded: "+Object.keys(raw).length+" devices")}catch(e){toast(e.message)}});
+  b("libcopy",()=>copyText($("#libtsv")));
+  b("libreset",()=>{state.libRaw=null;LIB=buildLib(DEFAULT_LIB);save();render();toast("Example library restored")});
+}
+function copyText(el){const t=el.textContent;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast("Copied. Paste into Excel")).catch(()=>{const r=document.createRange();r.selectNodeContents(el);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast("Selected. Tap Copy")})}
+
+$("#main").addEventListener("click",async e=>{
+  const t=e.target.closest("button,img[data-view]");if(!t)return;const s=site(),d=t.dataset;
+  if(d.go){go(+d.go);return}
+  if(d.dev){s.devices=s.devices.includes(d.dev)?s.devices.filter(x=>x!==d.dev):[...s.devices,d.dev];save();render();return}
+  if(d.sel){s.sel[d.sel]=d.v;save();render();return}
+  if(d.addx){const k=d.addx,tx=$("#xt-"+CSS.escape(k)).value.trim();if(!tx){toast("Type the extra requirement first");return}
+    s.extras.push({id:"X"+Date.now().toString(36),device:k,cat:$("#xc-"+CSS.escape(k)).value,text:tx,spec:$("#xs-"+CSS.escape(k)).value.trim(),resp:"MOH"});save();render();toast("Extra requirement added");return}
+  if(d.delx){s.extras=s.extras.filter(x=>x.id!==d.delx);save();render();return}
+  if(d.filter){state.filter=d.filter;save();render();return}
+  if(d.st){const v=sv(s,d.st);v.status=v.status===d.v?"":d.v;v.auto=false;save();const y=scrollY;render();scrollTo(0,y);return}
+  if(d.tgt){const r=applicable(s).find(x=>x.id===d.tgt);if(target&&target.key===d.tgt)setTarget(null);else setTarget(surveyTarget(r));const y=scrollY;render();scrollTo(0,y);return}
+  if(d.tool){tool=d.tool;closePop();document.querySelectorAll(".tool").forEach(b=>b.setAttribute("aria-pressed",b.dataset.tool===tool));return}
+  if(d.dir!==undefined){s.plan.nextDir=+d.dir;save();setTarget(planTargetDefault());render();return}
+  if(d.view){const src=await getPhoto(d.view);const m=document.createElement("div");m.className="modal";
+    m.innerHTML=`<div class="card"><img src="${src}" alt="Photo"><div class="row" style="margin-top:10px"><button class="btn" data-close>Close</button>${d.item?`<button class="btn warn" data-delph>Delete photo</button>`:""}</div></div>`;
+    document.body.appendChild(m);m.onclick=ev=>{if(ev.target===m||ev.target.dataset.close!==undefined)m.remove();if(ev.target.dataset.delph!==undefined){const v=sv(s,d.item);v.photos=v.photos.filter(p=>p!==d.view);save();m.remove();render()}}}
+});
+$("#main").addEventListener("input",e=>{const t=e.target,s=site();
+  if(t.id==="f-name"){s.name=t.value;save();renderSitePicker()}
+  if(t.id==="f-loc"){s.loc=t.value;save()} if(t.id==="f-date"){s.date=t.value;save()} if(t.id==="f-surveyor"){s.surveyor=t.value;save()}
+  if(t.dataset.model){s.models[t.dataset.model]=t.value;save()}
+  if(t.dataset.com){sv(s,t.dataset.com).comment=t.value;save()}
+});
+$("#main").addEventListener("change",async e=>{const t=e.target,s=site();
+  if(t.dataset.meas){const r=applicable(s).find(x=>x.id===t.dataset.meas);setMeasured(s,r,t.value.trim(),true);save();const y=scrollY;render();scrollTo(0,y)}
+  if(t.dataset.wlen!==undefined){const v=num(t.value);if(v&&v>0.05){s.plan.walls[+t.dataset.wlen].len=v;const pts=planPts(s.plan),e2=pts[pts.length-1];if(s.plan.closed)s.plan.gap=Math.hypot(e2[0],e2[1]);save();render()}}
+  if(t.dataset.photo&&t.files&&t.files[0]){try{const data=await compress(t.files[0]);const id="P"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);await putPhoto(id,data);sv(s,t.dataset.photo).photos.push(id);save();const y=scrollY;render();scrollTo(0,y);toast("Photo added")}catch(err){toast("Couldn't read that photo")}}
+});
+$("#main").addEventListener("focusin",e=>{const t=e.target,s=site();
+  if(t.dataset.meas){const r=applicable(s).find(x=>x.id===t.dataset.meas);if(r&&(r.verify==="Laser")&&(!target||target.key!==r.id)){setTarget(surveyTarget(r));document.querySelectorAll(".req.targeted").forEach(x=>x.classList.remove("targeted"));const row=document.getElementById("row-"+r.id);if(row)row.classList.add("targeted")}}
+  if(t.id==="ceil")setTarget(ceilTarget());
+});
+render();
+</script>
+</body>
+</html>
