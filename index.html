@@ -319,14 +319,150 @@ const CT_REQS=[
  R("Delivery","Unpacking and storage","Acclimatise 24 h before unpacking; storage −15 to +45 °C, 20–80 % RH",{r:E,ty:"C",only:["CT5300"],src:"5300 SPS §1.7.3"}),
  R("General","Site ready before delivery","Finished, clean, dry, lockable, clear of contractors",{src:"Philips SPS §1.5"})
 ];
+/* MRI — general rows = Experia "Site Requirements and Responsibility Matrix – MRI" (Matrix) + common Philips MR site rules.
+   MR7700 = Philips MR 7700, JO-25-00005 Rev C (SPS/SPD).  OHP = Ingenia 3.0T Omega HP, JO-25-00008 Rev B.
+   ELX = Ingenia Elition X, JO-24-00006 Rev A/D.  AMB = Ingenia Ambition S, JO-24-00003 layout (AL-1) only. */
+const M3=["MR7700","OHP","ELX"],M4=["MR7700","OHP","ELX","AMB"];
+const MRI_REQS=[
+ R("Electrical","Main power cable (MRI)","3-phase, 5-wire (L1, L2, L3, N, PE), 380/400 VAC, 86 kVA, 124 A/phase",{src:"Matrix E1",m:{
+   MR7700:{s:"Star 3-phase + N + PE, 380/400 V ± 10 %, 50 Hz ± 1 Hz; 115 kVA (< 5 s), 175 A/phase",src:"7700 AL-1, SPS §3.2.3"},
+   OHP:{s:"Star 3-phase + N + PE, 380/400 V ± 10 %, 50 Hz ± 1 Hz; 86 kVA, 124 A/phase",src:"Omega HP AL-1, SPS §3.2.3"},
+   ELX:{s:"Star 3-phase + N + PE, 380/400 V ± 10 %, 50 Hz ± 1 Hz; 86 kVA, 124 A/phase",src:"Elition X AL-1, SPS §3.2.3"},
+   AMB:{s:"Star 3-phase + N + PE, 380/400 V ± 10 %, 50 Hz ± 1 Hz; 60 kVA, 90 A/phase",src:"Ambition S AL-1"}}}),
+ R("Electrical","Supply voltage (L-L, measured)","380/400 VAC ± 10 %",{v:"Meter",op:"range",mn:342,mx:440,src:"Philips AL-1"}),
+ R("Electrical","Mains impedance (L-L)","Per vendor",{v:"Meter",op:"<=",only:M4,src:"Philips AL-1",m:{
+   MR7700:{s:"< 110 mΩ at nominal voltage",mx:110,src:"7700 AL-1, SPS §3.2.3"},OHP:{s:"< 150 mΩ at nominal voltage",mx:150,src:"Omega HP AL-1"},
+   ELX:{s:"< 150 mΩ at nominal voltage",mx:150,src:"Elition X AL-1"},AMB:{s:"< 200 mΩ at nominal voltage",mx:200,src:"Ambition S AL-1"}}}),
+ R("Electrical","Power cable for chiller","3-phase, 5-wire (L1, L2, L3, N, PE), separate from the MRI feed",{src:"Matrix E2"}),
+ R("Electrical","Power box / breakers","Main MCCB 160 A; MCCB 125 A for MRI; MCCB 35 A for chiller; earth + neutral busbar",{src:"Matrix E3",m:{
+   MR7700:{s:"MRI fuse/MCCB 150 A (380/400 V); peaks 400 A < 5 ms, 500 A < 1 ms; chiller MCCB per chiller; main MCCB sized to suit",src:"7700 SPS §3.2.3"},
+   OHP:{s:"Main MCCB 160 A; MRI fuse/MCCB 125 A (peaks 400 A < 5 ms, 500 A < 1 ms); chiller MCCB 35 A; earth + neutral busbar",src:"Matrix E3, Omega HP SPS §3.2.3"},
+   ELX:{s:"Main MCCB 160 A; MRI fuse/MCCB 125 A (peaks 400 A < 5 ms, 500 A < 1 ms); chiller MCCB 35 A; earth + neutral busbar",src:"Matrix E3, Elition X SPS §3.2.3"},
+   AMB:{s:"MRI fuse/MCCB 100 A (peaks 400 A < 5 ms, 500 A < 1 ms); chiller MCCB per chiller",src:"Ambition S AL-1"}}}),
+ R("Electrical","Dedicated MRI supply","Separate from AC, elevators and other switched or motor loads; no UPS or power conditioner without vendor approval",{src:"Philips SPS §3.2.2"}),
+ R("Electrical","Neutral to PE voltage","< 2 % of L-N voltage (< 4.6 V at 230 V)",{v:"Meter",op:"<=",mx:4.6,only:M3,src:"Philips SPS §3.2.3"}),
+ R("Electrical","Earth-leakage breaker (RCD)","Per local regulations",{ty:"C",src:"Philips SPS §3.2.4"}),
+ R("Electrical","RF-cage earthing","Central PE busbar for RF enclosure, ≥ 16 mm² to hospital PE, busbar < 1 m from RF-enclosure earth point; earth reference terminal in technical room",{src:"Philips SPS §3.2.5, AL-1"}),
+ R("Electrical","Mains switch","Technical room, per drawings",{src:"Philips AL-1"}),
+ R("Electrical","Emergency run-down button","Control room, per drawings",{r:V,src:"Philips AL-1"}),
+ R("Electrical","Power point for RF-cage lighting","Single-phase 220 V in the technical room to feed the lighting inside the MRI room",{src:"Matrix E4"}),
+ R("Electrical","Service power outlet – technical room","Single-phase 220 V",{src:"Matrix E5"}),
+ R("Electrical","Power outlets under control desk","4 × single-phase 220 V",{src:"Matrix E7"}),
+ R("Electrical","Lighting inside RF cage","Lighting for RF cage",{v:"Meter",src:"Matrix E9",m:{
+   MR7700:{s:"Incandescent or halogen only (no fluorescent, LED drivers or dimmers); ≥ 500 lux service, 200 lux adjustable for exam",op:">=",mn:500,src:"7700 SPS §3.2.6"},
+   OHP:{s:"Incandescent or halogen only (no fluorescent, LED drivers or dimmers); ≥ 500 lux service, 200 lux adjustable for exam",op:">=",mn:500,src:"Omega HP SPS §3.2.6"},
+   ELX:{s:"Incandescent or halogen only (no fluorescent, LED drivers or dimmers); ≥ 500 lux service, 200 lux adjustable for exam",op:">=",mn:500,src:"Elition X SPS §3.2.6"}}}),
+ R("Electrical","Service light and outlet above ceiling","Double 16 A outlet + light switch above the suspended ceiling near the magnet turret",{only:M3,src:"Philips SPS §3.2.6"}),
+ R("Electrical","Lighting – technical and control rooms","Installed",{src:"Matrix E10"}),
+ R("Network","Data outlet – technical room","For service",{src:"Matrix E6"}),
+ R("Network","Data outlets under control desk","4 × data outlets",{src:"Matrix E8"}),
+ R("Network","Remote service connection","RJ45 with hospital network / internet, IP addresses allocated",{src:"Philips AL-1",m:{
+   MR7700:{s:"2 × RJ45 100/1000 Mbps (X-3 item 4) with hospital network / internet",src:"7700 AL-1, X-3"},
+   OHP:{s:"RJ45 100/1000 Mbps (X-3 item 4) with hospital network / internet",src:"Omega HP AL-1, X-3"},
+   ELX:{s:"RJ45 100/1000 Mbps (X-3 item 4) with hospital network / internet",src:"Elition X AL-1, X-3"},
+   AMB:{s:"RJ45 10/100/1000 Mbps with hospital network / internet",src:"Ambition S AL-1"}}}),
+ R("Mechanical","AC – MRI exam room","3 Ton duct split unit",{src:"Matrix M1",m:{
+   MR7700:{s:"3 Ton duct split; equipment load 2 kW; conditioned air only through RF waveguides",src:"Matrix M1, 7700 SPS §4.2"},
+   OHP:{s:"3 Ton duct split; equipment load 2 kW; conditioned air only through RF waveguides",src:"Matrix M1, Omega HP SPS §4.2"},
+   ELX:{s:"3 Ton duct split; equipment load 2 kW; conditioned air only through RF waveguides",src:"Matrix M1, Elition X SPS §4.2"},
+   AMB:{s:"3 Ton duct split; equipment load 2 kW",src:"Matrix M1, Ambition S AL-1"}}}),
+ R("Mechanical","Exam room airflow","≥ 800 m³/h conditioned air: 400 m³/h under the suspended ceiling (≥ 5 air changes/h) + 400 m³/h above; exhaust to outside at high level",{v:"Document",only:M3,src:"Philips SPS §4.2"}),
+ R("Mechanical","AC – control room","1.5 Ton × 1",{src:"Matrix M2",m:{MR7700:{s:"1.5 Ton × 1; equipment load 0.3 kW",src:"Matrix M2, 7700 AL-1"},OHP:{s:"1.5 Ton × 1; equipment load 0.3 kW",src:"Matrix M2, Omega HP AL-1"},ELX:{s:"1.5 Ton × 1; equipment load 0.3 kW",src:"Matrix M2, Elition X AL-1"},AMB:{s:"1.5 Ton × 1; equipment load 0.3 kW",src:"Matrix M2, Ambition S AL-1"}}}),
+ R("Mechanical","AC – technical room","4 Ton (2 × 2 Ton split units)",{src:"Matrix M3",m:{
+   MR7700:{s:"4 Ton (2 × 2 Ton split); equipment 2 kW standby, 6 kW peak (+ chiller if inside)",src:"Matrix M3, 7700 AL-1"},
+   OHP:{s:"4 Ton (2 × 2 Ton split); equipment 2 kW standby, 6 kW peak (+ chiller if inside)",src:"Matrix M3, Omega HP AL-1"},
+   ELX:{s:"4 Ton (2 × 2 Ton split); equipment 2 kW standby, 6 kW peak (+ chiller if inside)",src:"Matrix M3, Elition X AL-1"},
+   AMB:{s:"4 Ton (2 × 2 Ton split); equipment 2 kW (8 kW with air-cooled cryo-cooler)",src:"Matrix M3, Ambition S AL-1"}}}),
+ R("Mechanical","Heat dissipation (design values)","Exam room 2,000 W, technical room 10,000 W, control room 400 W",{v:"Document",src:"Matrix note"}),
+ R("Mechanical","Exam room temperature","18 – 22 °C (21 °C preferred)",{v:"Meter",op:"range",mn:18,mx:22,src:"Matrix note, Philips AL-1"}),
+ R("Mechanical","Exam room humidity","40 – 70 % RH, non-condensing",{v:"Meter",op:"range",mn:40,mx:70,src:"Matrix note, Philips AL-1"}),
+ R("Mechanical","Control room temperature","18 – 24 °C (equipment 10 – 35 °C)",{v:"Meter",op:"range",mn:18,mx:24,src:"Philips AL-1"}),
+ R("Mechanical","Technical room temperature","15 – 24 °C",{v:"Meter",op:"range",mn:15,mx:24,src:"Philips AL-1"}),
+ R("Mechanical","Control / technical room humidity","30 – 70 % RH, non-condensing",{v:"Meter",op:"range",mn:30,mx:70,src:"Philips AL-1"}),
+ R("Mechanical","Temperature stability","Change ≤ 5 °C per 10 minutes (all MRI rooms)",{v:"Document",src:"Matrix note, Philips AL-1"}),
+ R("Mechanical","Chiller capacity","Chiller per vendor; must run 24/7 to protect helium",{v:"Document",src:"Philips SPS §4.3",m:{
+   MR7700:{s:"7 kW idle – 60 kW peak to water; runs 24/7",src:"7700 SPS §4.3"},OHP:{s:"7 – 45 kW to water; runs 24/7",src:"Omega HP SPS §4.3"},
+   ELX:{s:"7 kW idle – 60 kW peak to water; runs 24/7",src:"Elition X SPS §4.3"},AMB:{s:"5 – 40 kW to water; runs 24/7",src:"Ambition S AL-1"}}}),
+ R("Mechanical","Chilled water inlet temperature","6 – 16 °C (12 °C preferred); potable water, pH 6–8, ≤ 600 kPa, ≤ 5,400 l/h, glycol 0–50 %, stability ± 2 °C/10 min",{v:"Meter",op:"range",mn:6,mx:16,only:M3,src:"Philips SPS §4.3"}),
+ R("Mechanical","Chilled water connection point","Within 3 m of the liquid cooling cabinet; pipes end ≈ 2 m above floor; flow, pressure and temperature gauges fitted",{only:M3,src:"Philips SPS §4.3"}),
+ R("Mechanical","Chiller water piping","Chiller to technical room",{r:E,src:"Matrix M4"}),
+ R("Mechanical","Quench (helium) piping","Helium vent pipe to outside",{r:E,src:"Matrix M5",m:{
+   MR7700:{s:"Vent pipe to outside, exit in a non-accessible area above snow level; no fire/smoke dampers; 70 mm insulation inside RF cage; drain points",src:"7700 SPS §4.8.1"},
+   OHP:{s:"Vent pipe to outside, exit in a non-accessible area above snow level; no fire/smoke dampers; 70 mm insulation inside RF cage; drain points",src:"Omega HP SPS §4.8.1"},
+   ELX:{s:"Vent pipe to outside, exit in a non-accessible area above snow level; no fire/smoke dampers; 70 mm insulation inside RF cage; drain points",src:"Elition X SPS §4.8.1"}}}),
+ R("Mechanical","Drain for AC systems","Condensate drain for each unit",{src:"Matrix M6"}),
+ R("Mechanical","Medical gas","As required by the customer",{ty:"C",src:"Matrix M7"}),
+ R("Mechanical","Firefighting – technical and control rooms","Per civil defence code",{src:"Matrix M8"}),
+ R("Civil","Exam room floor area","Per approved site layout",{v:"Laser",ln:"area",src:"Survey"}),
+ R("Civil","Ceiling height (finished)","Per approved site layout and RF-cage drawing (AD-1)",{v:"Laser",ln:"ceiling",src:"Survey"}),
+ R("Civil","Exam room ceiling clear of services","No AC ducts, lighting or other services in the MRI room ceiling",{src:"Matrix C2"}),
+ R("Civil","Ceiling of parking below clear","Ceiling of the area under the MRI room clear of services, for passive shielding",{ty:"C",src:"Matrix C4"}),
+ R("Civil","Concrete base","Base for magnet and patient table",{src:"Matrix C3",m:{
+   MR7700:{s:"Floor pads 1–3 (Philips supplied); magnet feet on floor plates; patient support 4 × M10",src:"7700 SPS §2.2, X-1"},
+   OHP:{s:"Floor pads 1–3 (Philips supplied); magnet feet on floor plates; patient support 4 × M10",src:"Omega HP SPS §2.2, X-1"},
+   ELX:{s:"Floor pads 1–3 (Philips supplied); magnet feet on floor plates; patient support 4 × M10",src:"Elition X SPS §2.2, X-1"}}}),
+ R("Civil","Floor load capacity","Suitable for the magnet",{v:"Document",only:M4,src:"Philips AL-1",m:{
+   MR7700:{s:"Magnet 6,300 kg; 16 kN per foot (64 kN total)",src:"7700 SPS §2.2"},OHP:{s:"Magnet 6,100 kg; 16 kN per foot",src:"Omega HP SPS §1.8, §2.2"},
+   ELX:{s:"Magnet 6,300 kg; 16 kN per foot",src:"Elition X SPS §1.8, §2.2"},AMB:{s:"Magnet 3,700 kg",src:"Ambition S AL-1"}}}),
+ R("Civil","Floor levelness","Floor perfectly level",{v:"Meter",src:"Matrix C13",m:{
+   MR7700:{s:"± 2.5 mm at floor pads; RF enclosure ≤ 2.5 mm/m; room ± 10 mm recommended",op:"<=",mx:2.5,src:"7700 SPS §2.2"},
+   OHP:{s:"± 2.5 mm at floor pads; RF enclosure ≤ 2.5 mm/m; room ± 10 mm recommended",op:"<=",mx:2.5,src:"Omega HP SPS §2.2"},
+   ELX:{s:"± 2.5 mm at floor pads; RF enclosure ≤ 2.5 mm/m; room ± 10 mm recommended",op:"<=",mx:2.5,src:"Elition X SPS §2.2"}}}),
+ R("Civil","Steel reinforcement under magnet","3 × 3 m around isocentre: no steel within 50 mm of finished floor, ≤ 25 kg/m² between 50–250 mm; beams across Z-axis ≥ 250 mm, others ≥ 600 mm below floor",{v:"Document",src:"Philips AL-1"}),
+ R("Civil","Floor cable duct magnet–table","150 × 14 mm min.; non-magnetic cover flush with floor, 2,000 N",{only:M3,src:"Philips SPS §2.2"}),
+ R("Civil","Exam room floor covering","Static dissipative (< 1 × 10⁹ Ω/sq); max 4 mm over floor plates",{only:M3,src:"Philips SPS §2.2"}),
+ R("Civil","Floor tiling","Installed (levelness checked separately)",{src:"Matrix C13"}),
+ R("Civil","Floor PVC – control and technical rooms","Installed",{src:"Matrix C14"}),
+ R("Civil","Floor PVC – MRI exam room","Installed",{r:E,src:"Matrix C15"}),
+ R("Civil","Core for quench","Wall core for helium vent pipe",{r:E,src:"Matrix C5",m:{MR7700:{s:"Wall opening for helium exhaust 350 × 350 mm (A-2 item 15)",src:"7700 SPD A-2"}}}),
+ R("Civil","Quench exit area","Route to outside for the quench pipe; exit area designated restricted",{src:"Matrix note, Philips SPS §1.7"}),
+ R("Civil","Emergency quench boxes","For protection",{r:E,src:"Matrix C22"}),
+ R("Civil","Magnet transfer opening – width","2.5 m (route and opening, incl. closing after)",{r:C,v:"Laser",op:">=",mn:2.5,src:"Matrix C18",m:{
+   MR7700:{s:"2.5 m wide (wall), 6,300 kg magnet",src:"7700 SPS §1.8.2"},OHP:{s:"2.5 m wide (A-2 item 7), 6,100 kg magnet",src:"Omega HP SPD A-2"},ELX:{s:"2.5 m wide (wall), 6,300 kg magnet",src:"Elition X SPS §1.8.2"}}}),
+ R("Civil","Magnet transfer opening – height","2.5 m",{r:C,v:"Laser",op:">=",mn:2.5,src:"Matrix C18",m:{
+   MR7700:{s:"≥ 2.4 m recommended (+ floor protection)",mn:2.4,src:"7700 SPS §1.8.2"},OHP:{s:"2.6 m (A-2 item 7)",mn:2.6,src:"Omega HP SPD A-2"},ELX:{s:"≥ 2.4 m recommended (+ floor protection)",mn:2.4,src:"Elition X SPS §1.8.2"}}}),
+ R("Civil","Filter box wall opening","Wall opening in the technical room for filter box and filters",{src:"Matrix C19",m:{MR7700:{s:"Filter box opening 850 × 850 mm + SACU opening 250 × 250 mm",src:"7700 SPD A-2"},OHP:{s:"Wall openings per A-2 + SACU opening 250 × 250 mm",src:"Omega HP SPD A-2"},ELX:{s:"Wall opening per A-2 + SACU opening 250 × 250 mm",src:"Elition X SPD A-2"}}}),
+ R("Civil","Passive shielding and RF cage","Supply and install",{r:E,src:"Matrix C21",m:{
+   MR7700:{s:"RF shielding ≥ 100 dB (15–130 MHz), 90 dB (10–15 MHz); walls ≥ 1.6 m from isocentre; accepted by Philips before delivery",src:"7700 SPS §2.1"},
+   OHP:{s:"RF shielding ≥ 100 dB (15–130 MHz), 90 dB (10–15 MHz); walls ≥ 1.6 m from isocentre; accepted by Philips before delivery",src:"Omega HP SPS §2.1"},
+   ELX:{s:"RF shielding ≥ 100 dB (15–130 MHz), 90 dB (10–15 MHz); walls ≥ 1.6 m from isocentre; accepted by Philips before delivery",src:"Elition X SPS §2.1"}}}),
+ R("Civil","RF door","Opens outwards; if inwards, add 600 × 600 mm overpressure feed-through",{r:E,src:"Philips AL-1"}),
+ R("Civil","0.5 mT (5 G) controlled area","0.5 mT line kept inside exam room walls, floor and ceiling, or fenced; passive shielding if needed",{src:"Philips AL-1"}),
+ R("Civil","Acoustic separation","Brick wall R'w > 52 dB to adjacent rooms; RF door R'w > 32 dB; RF window R'w > 40 dB",{ty:"C",only:M3,src:"Philips SPS §2.1"}),
+ R("Civil","Window and door frame – exam room","Installed",{src:"Matrix C6"}),
+ R("Civil","Doors – control and technical rooms","Installed",{src:"Matrix C7"}),
+ R("Civil","Partition control / exam room","Including tiling and painting",{src:"Matrix C20"}),
+ R("Civil","Cable ladder – technical room","Aluminium",{r:E,src:"Matrix C1"}),
+ R("Civil","Control desk","Installed",{src:"Matrix C8"}),
+ R("Civil","Wall cladding – control and technical rooms","Installed",{src:"Matrix C9"}),
+ R("Civil","Wall painting – control and technical rooms","Finished",{src:"Matrix C10"}),
+ R("Civil","Furniture","Installed",{src:"Matrix C11"}),
+ R("Civil","Coil cabinet","Supply",{r:E,src:"Matrix C12"}),
+ R("Civil","False ceiling – control room","Installed",{src:"Matrix C16"}),
+ R("Civil","Technical room","Required",{src:"Matrix C17",m:{
+   MR7700:{s:"For CombiCabinet, gradient amplifier and SACU; cabinets within cable lengths of the filter box (10–14 m)",src:"7700 AL-1"},
+   OHP:{s:"For MDU, LCC, DACC, gradient amplifier and SACU; within cable lengths of the filter box (10–14 m)",src:"Omega HP AL-1"},
+   ELX:{s:"For CombiCabinet, gradient amplifier and SACU; within cable lengths of the filter box (10–14 m)",src:"Elition X AL-1"},
+   AMB:{s:"For CombiCabinet, gradient amplifier, SACU and cryo-cooler; within cable lengths (10–14 m)",src:"Ambition S AL-1"}}}),
+ R("Civil","MRI room resizing","If needed",{ty:"C",src:"Matrix C23"}),
+ R("Civil","Control room resizing","If needed",{ty:"C",src:"Matrix C24"}),
+ R("Civil","Technical room door resizing","If needed",{ty:"C",src:"Matrix C25"}),
+ R("Site","Distance from moving metal and power","Away from car movement, elevators, power cables and power panels; moving steel objects outside the 0.3 mT line",{src:"Matrix note, Philips SPS §5.1"}),
+ R("Site","B0 and vibration site test","Environmental test by vendor service before acceptance",{r:V,v:"Document",only:M3,src:"Philips SPS §5.1"}),
+ R("Delivery","Equipment delivery to site","Delivery and offloading",{r:E,src:"Matrix"}),
+ R("Delivery","Magnet delivery route","Large truck, crane, transport wheels; route rated for the magnet and tools",{r:E,src:"Philips SPS §1.8.2",m:{
+   MR7700:{s:"Magnet 6,300 kg; truck, crane, transport wheels; route rated for magnet + tools",src:"7700 SPS §1.8.2"},
+   OHP:{s:"Magnet 6,100 kg; truck, crane, transport wheels; route rated for magnet + tools",src:"Omega HP SPS §1.8.2"},
+   ELX:{s:"Magnet 6,300 kg; truck, crane, transport wheels; route rated for magnet + tools",src:"Elition X SPS §1.8.2"},
+   AMB:{s:"Magnet 3,700 kg; route rated for magnet + tools",src:"Ambition S AL-1"}}}),
+ R("Delivery","Rigging","By customer / contractor unless agreed otherwise",{r:C,only:M3,src:"Philips SPS §1.8.2"}),
+ R("Delivery","Helium dewar route width","≥ 1.2 m clear (× 2.1 m high) to the exam room; floor rated for dewars",{r:E,v:"Laser",op:">=",mn:1.2,only:M3,src:"Philips SPS §1.8.2"}),
+ R("General","Site ready before delivery","Finished, clean, dry, lockable, clear of contractors",{src:"Philips SPS §1.5"})
+];
 const legacy=(rows)=>rows.map(r=>({c:r[0],t:r[1],s:r[2],ty:r[3],r:r[4]==="MOH"?C:r[4],v:r[5],op:r[6]||"",mn:r[7],mx:r[8],ln:r[9]||"",src:"Example"}));
 const DEFAULT_LIB = {
   "CT":{name:"CT Scanner",foot:[2.6,3.8],models:{CT5300:"CT 5300",ICT:"Philips iCT","":"General (all models)"},mfoot:{CT5300:[2.35,3.6],ICT:[2.75,3.8]},reqs:CT_REQS},
-  "MRI":{name:"MRI 1.5T",foot:[2.3,6.5],example:true,reqs:legacy([
-    ["Room","Magnet room floor area","≥ 35 m²","M",C,"Laser",">=",35,"","area"],["Room","Clear ceiling height","≥ 2.80 m","M",C,"Laser",">=",2.80,"","ceiling"],
-    ["Room","Delivery route width","≥ 2.00 m","M",C,"Laser",">=",2.00,"","door"],["Structure","Floor load","≥ 4,500 kg magnet footprint","M",C,"Document"],
-    ["Shielding","RF cage","100 dB at 64 MHz","M",V,"Document"],["Electrical","Main supply voltage (L-L)","400 V ± 10 %","M",C,"Meter","range",360,440],
-    ["HVAC","Room temperature","18 – 22 °C","M",C,"Meter","range",18,22],["HVAC","Quench pipe route","Clear route to outside","M",C,"Visual"],["Network","Data points","2 × Cat6","M",C,"Visual"]])},
+  "MRI":{name:"MRI",foot:[2.3,4.4],models:{MR7700:"MR 7700",OHP:"Ingenia 3.0T Omega HP",ELX:"Ingenia Elition X",AMB:"Ingenia Ambition S","":"General (all models)"},reqs:MRI_REQS},
   "CATH":{name:"Cath Lab",foot:[3.0,4.8],example:true,reqs:legacy([
     ["Room","Procedure room floor area","≥ 45 m²","M",C,"Laser",">=",45,"","area"],["Room","Clear ceiling height","≥ 3.00 m","M",C,"Laser",">=",3.00,"","ceiling"],
     ["Room","Door clear width","≥ 1.40 m","M",C,"Laser",">=",1.40,"","door"],["Structure","Ceiling support structure","Unistrut per vendor drawing","M",C,"Document"],
@@ -338,7 +474,7 @@ const DEFAULT_LIB = {
     ["Shielding","Radiation shielding","1.5 mm Pb","M",C,"Document"],["Network","Data points","2 × Cat6","M",C,"Visual"]])}
 };
 const TYPE={M:"Mandatory",C:"Conditional",O:"Optional",X:"Site extra"};
-const CATS=["General","Civil","Room","Structure","Electrical","Network","Mechanical","HVAC","Shielding","Safety","Plumbing","Gases","Delivery","Other"];
+const CATS=["General","Site","Civil","Room","Structure","Electrical","Network","Mechanical","HVAC","Shielding","Safety","Plumbing","Gases","Delivery","Other"];
 const slug=t=>String(t).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48);
 function num(v){const n=parseFloat(String(v??"").replace(",","."));return isNaN(n)?null:n}
 function buildLib(raw){
@@ -873,7 +1009,7 @@ function libRows(){const out=[];
 function vLibrary(){
   const tsv=[LIBHEAD.join("\t")].concat(libRows().map(r=>r.map(c=>String(c??"").replace(/[\t\n]/g," ")).join("\t"))).join("\n");
   return `<div class="eyebrow">Master library</div><h1>Requirements library</h1>
-  <p class="lede">CT is built from your responsibility matrix plus the Philips site preparation packages for the CT 5300 (JO-25-00009) and the iCT (JO-24-00007). MRI, Cath Lab and X-ray still hold example values. Keep the library in Excel with the columns below, then copy all rows (with the header) and paste them here.</p>
+  <p class="lede">CT and MRI are built from your responsibility matrices plus the Philips site preparation packages (CT 5300 JO-25-00009, iCT JO-24-00007; MR 7700 JO-25-00005, Ingenia 3.0T Omega HP JO-25-00008, Ingenia Elition X JO-24-00006, Ingenia Ambition S JO-24-00003). Cath Lab and X-ray still hold example values. Keep the library in Excel with the columns below, then copy all rows (with the header) and paste them here.</p>
   <div class="card" style="margin-bottom:14px"><h2 style="margin-bottom:8px">Column guide</h2><div class="tablewrap"><table><tbody>
     <tr><td><b>Model</b></td><td>Leave empty for rows that apply to every model. Put a model name to add a requirement for that model only, or to override the Spec / Rule of a row with the same Requirement text.</td></tr>
     <tr><td><b>Type</b></td><td>M = Mandatory, C = Conditional, O = Optional</td></tr>
