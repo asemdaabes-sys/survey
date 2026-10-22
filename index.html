@@ -291,7 +291,7 @@ const CT_REQS=[
  R("Civil","Lead shielding walls","4 mm Pb up to 3 m height (final value per radiation protection report)",{v:"Document",src:"Matrix C1"}),
  R("Civil","Radiation protection approval","Shielding approved by the radiation authority before installation",{v:"Document",src:"Philips SPS §1.6"}),
  R("Civil","Leaded entrance door – width","120 cm clear opening",{v:"Laser",op:">=",mn:1.2,ln:"door",src:"Matrix C2"}),
- R("Civil","Leaded entrance door – height","210 cm clear opening",{v:"Laser",op:">=",mn:2.1,src:"Matrix C2"}),
+ R("Civil","Leaded entrance door – height","210 cm clear opening",{v:"Laser",op:">=",mn:2.1,ln:"doorh",src:"Matrix C2"}),
  R("Civil","Leaded glass window – width","120 × 80 cm, control room",{v:"Laser",op:">=",mn:1.2,src:"Matrix C5"}),
  R("Civil","Window and door frames","Installed",{src:"Matrix C6"}),
  R("Civil","Control room door","Leaded if it opens into the exam room",{src:"Matrix C7"}),
@@ -605,8 +605,10 @@ function closeRoom(){const p=site().plan;if(p.walls.length<2){toast("Measure at 
 /* push plan values into linked requirements */
 function syncLinks(s){
   const p=s.plan,area=planArea(p);
-  const doors=p.syms.filter(x=>x.t==="door"&&num(x.w)!==null).map(x=>num(x.w));
-  const vals={area:area!==null?f2(area):"",ceiling:num(p.ceiling)!==null?f2(num(p.ceiling)):"",door:doors.length?f2(Math.max(...doors)):""};
+  const doors=p.syms.filter(x=>x.t==="door"&&num(x.w)!==null).sort((a,b)=>num(b.w)-num(a.w));
+  const main=doors[0],hs=p.syms.filter(x=>x.t==="door"&&num(x.h)!==null);
+  const vals={area:area!==null?f2(area):"",ceiling:num(p.ceiling)!==null?f2(num(p.ceiling)):"",door:main?f2(num(main.w)):"",
+    doorh:main&&num(main.h)!==null?f2(num(main.h)):hs.length?f2(Math.max(...hs.map(x=>num(x.h)))):""};
   applicable(s).forEach(r=>{if(!r.link)return;const v=vals[r.link];const cur=s.survey[r.id];
     if(v===""){return}
     if(!cur||cur.measured!==v||cur.status===""){setMeasured(s,r,v,true)}});
@@ -774,7 +776,8 @@ function wallSegs(p){const pts=planPts(p),out=[];for(let i=0;i<pts.length-1;i++)
 function rayWall(p,x,y,dx,dy){let best=null;wallSegs(p).forEach(([a,b])=>{
   if(a[0]===b[0]&&dx){const t=(a[0]-x)/dx;if(t>1e-6&&y>=Math.min(a[1],b[1])-1e-6&&y<=Math.max(a[1],b[1])+1e-6&&(best===null||t<best))best=t}
   if(a[1]===b[1]&&dy){const t=(a[1]-y)/dy;if(t>1e-6&&x>=Math.min(a[0],b[0])-1e-6&&x<=Math.max(a[0],b[0])+1e-6&&(best===null||t<best))best=t}});return best}
-function colGaps(p,o){const hw=o.w/2,hd=o.d/2;return {l:rayWall(p,o.x-hw,o.y,-1,0),r:rayWall(p,o.x+hw,o.y,1,0),t:rayWall(p,o.x,o.y-hd,0,-1),b:rayWall(p,o.x,o.y+hd,0,1)}}
+function itemBox(o){const r=itemCorners(o);const xs=r.map(c=>c[0]),ys=r.map(c=>c[1]);return {x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)}}
+function colGaps(p,o){const b=itemBox(o);return {l:rayWall(p,b.x0,o.y,-1,0),r:rayWall(p,b.x1,o.y,1,0),t:rayWall(p,o.x,b.y0,0,-1),b:rayWall(p,o.x,b.y1,0,1)}}
 function snapCol(p,o,tol){const hw=o.w/2,hd=o.d/2;wallSegs(p).forEach(([a,b])=>{
   if(a[0]===b[0]&&o.y+hd>Math.min(a[1],b[1])&&o.y-hd<Math.max(a[1],b[1])){if(Math.abs(o.x-hw-a[0])<tol)o.x=a[0]+hw;else if(Math.abs(o.x+hw-a[0])<tol)o.x=a[0]-hw}
   if(a[1]===b[1]&&o.x+hw>Math.min(a[0],b[0])&&o.x-hw<Math.max(a[0],b[0])){if(Math.abs(o.y-hd-a[1])<tol)o.y=a[1]+hd;else if(Math.abs(o.y+hd-a[1])<tol)o.y=a[1]-hd}});
@@ -811,7 +814,7 @@ function vPlan(){
       </div>
       <canvas id="plan" aria-label="Room plan"></canvas>
     </div>
-    <p class="hint">Apple Pencil draws and places. One finger moves, two fingers zoom. With Move, drag an item to move it or tap it to edit its size and position. Columns snap to walls.</p>
+    <p class="hint">Apple Pencil draws and places. One finger moves, two fingers zoom. With Move, drag an item to move it or tap it to edit its size and position. Columns snap to walls. Equipment: drag to move, tap to rotate (Equipment tool) or tap to edit (Move tool).</p>
   </div>
   <aside class="side noprint">
     <div class="card"><h2 style="margin-bottom:8px">Walls by laser</h2>
@@ -882,22 +885,24 @@ function drawPlan(ctx,W,H,s,opt={}){
     const L=Math.hypot(l.b[0]-l.a[0],l.b[1]-l.a[1]);if(L>0.05){const dx=(l.b[0]-l.a[0])/L,dy=(l.b[1]-l.a[1])/L;tag(ctx,L.toFixed(2)+" m",X((l.a[0]+l.b[0])/2)+dy*16,Y((l.a[1]+l.b[1])/2)-dx*16,preview?sig:bg,preview?bg:ink)}};
   p.lines.forEach(l=>lineDraw(l,false));if(live.line)lineDraw(live.line,true);
   /* items */
+  const drawGaps=o=>{const g=colGaps(p,o),bx=itemBox(o);ctx.setLineDash([5,4]);ctx.strokeStyle=sig;ctx.lineWidth=1.5;
+    [["l",-1,0],["r",1,0],["t",0,-1],["b",0,1]].forEach(([k,dx,dy])=>{const v=g[k];if(v===null||v<0.005)return;
+      const sx=dx?X(dx<0?bx.x0:bx.x1):X(o.x),sy=dy?Y(dy<0?bx.y0:bx.y1):Y(o.y),exx=sx+dx*v*sc,eyy=sy+dy*v*sc;
+      ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(exx,eyy);ctx.stroke();tag(ctx,v.toFixed(2),(sx+exx)/2,(sy+eyy)/2,sig,bg)});ctx.setLineDash([])};
   p.syms.forEach(o=>{const d=SYM[o.t];if(!d)return;const isSel=!EX&&sel===o;
     if(o.t==="col"){const r=colRect(o),x0=X(r[0][0]),y0=Y(r[0][1]),w=o.w*sc,h=o.d*sc;
       ctx.fillStyle=EX?"#9aa1a6":"rgba(107,114,120,.55)";ctx.fillRect(x0,y0,w,h);
       ctx.save();ctx.beginPath();ctx.rect(x0,y0,w,h);ctx.clip();ctx.strokeStyle="rgba(15,42,51,.55)";ctx.lineWidth=1;for(let k=-h;k<w;k+=7){ctx.beginPath();ctx.moveTo(x0+k,y0+h);ctx.lineTo(x0+k+h,y0);ctx.stroke()}ctx.restore();
       ctx.strokeStyle=isSel?sig:ink;ctx.lineWidth=isSel?3:2;ctx.strokeRect(x0,y0,w,h);
       const lab=Math.round(o.w*100)+"×"+Math.round(o.d*100);if(w>34||isSel)tag(ctx,lab,x0+w/2,y0+h+12,bg,ink);
-      if(isSel){const g=colGaps(p,o);ctx.setLineDash([5,4]);ctx.strokeStyle=sig;ctx.lineWidth=1.5;
-        [["l",-1,0],["r",1,0],["t",0,-1],["b",0,1]].forEach(([k,dx,dy])=>{const v=g[k];if(v===null||v<0.005)return;
-          const sx=dx?X(o.x+dx*o.w/2):X(o.x),sy=dy?Y(o.y+dy*o.d/2):Y(o.y),exx=sx+dx*v*sc,eyy=sy+dy*v*sc;
-          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(exx,eyy);ctx.stroke();tag(ctx,v.toFixed(2),(sx+exx)/2,(sy+eyy)/2,sig,bg)});ctx.setLineDash([])}
+      if(isSel)drawGaps(o);
       return}
     if(o.t==="equip"){const r=equipRect(o),fit=equipFits(o,p),col=fit===false?"#c0392b":d.c;ctx.globalAlpha=.16;ctx.fillStyle=col;ctx.beginPath();r.forEach((c,i)=>i?ctx.lineTo(X(c[0]),Y(c[1])):ctx.moveTo(X(c[0]),Y(c[1])));ctx.closePath();ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=isSel?sig:col;ctx.lineWidth=2;ctx.setLineDash([7,5]);ctx.stroke();ctx.setLineDash([]);
-      ctx.fillStyle=col;ctx.font="700 12px Archivo, Arial, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText((LIB[o.dev]?.name||"Equipment")+(fit===false?" · does not fit":""),X(o.x),Y(o.y)+28);return}
+      ctx.fillStyle=col;ctx.font="700 12px Archivo, Arial, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText((LIB[o.dev]?.name||"Equipment")+(fit===false?" · does not fit":""),X(o.x),Y(o.y)+28);
+      if(isSel)drawGaps(o);return}
     const x=X(o.x),y=Y(o.y);if(isSel){ctx.strokeStyle=sig;ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,15,0,7);ctx.stroke()}
     ctx.fillStyle=d.c;ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.fill();ctx.fillStyle="#fff";ctx.font="700 11px JetBrains Mono, monospace";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(d.k,x,y+1);
-    const lab=o.t==="door"?(o.w?"W "+o.w:""):(o.h?"h "+o.h:"");if(lab){ctx.font="600 11.5px JetBrains Mono, monospace";const tw=ctx.measureText(lab).width+8;ctx.fillStyle=bg;ctx.fillRect(x+14,y-9,tw,18);ctx.fillStyle=ink;ctx.textAlign="left";ctx.fillText(lab,x+18,y);ctx.textAlign="center"}});
+    const lab=o.t==="door"?[o.w?"W "+o.w:"",o.h?"H "+o.h:""].filter(Boolean).join(" × "):(o.h?"h "+o.h:"");if(lab){ctx.font="600 11.5px JetBrains Mono, monospace";const tw=ctx.measureText(lab).width+8;ctx.fillStyle=bg;ctx.fillRect(x+14,y-9,tw,18);ctx.fillStyle=ink;ctx.textAlign="left";ctx.fillText(lab,x+18,y);ctx.textAlign="center"}});
   if(EX){ctx.font="600 11px JetBrains Mono, monospace";ctx.fillStyle="#5b7079";ctx.textAlign="left";ctx.fillText("Grid "+step+" m · "+s.name,12,H-12);ctx.textAlign="center"}
   else{ctx.font="600 11px JetBrains Mono, monospace";ctx.fillStyle=mut;ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.fillText("grid "+step+" m · zoom "+Math.round(cz.z*100)+"%",10,H-10)}
 }
@@ -939,10 +944,17 @@ function setupPlan(){
         return {move:ev=>{const [x,y]=pos(ev);if(!moved&&Math.hypot(x-start[0],y-start[1])<6)return;moved=true;const q=toM(x,y),dx=q[0]-m[0],dy=q[1]-m[1];
             if(h.k==="sym"){o.x=orig[0]+dx;o.y=orig[1]+dy;if(o.t==="col")snapCol(p,o,tolM()*0.9);else if(o.t==="door"){const w=snapToWall(p,[o.x,o.y],tolM()*1.5);o.x=w[0];o.y=w[1]}}
             else{o.a=[orig[0][0]+dx,orig[0][1]+dy];o.b=[orig[1][0]+dx,orig[1][1]+dy]}redraw()},
-          end:()=>{if(moved){save()}else{HIST.u.pop();if(h.k==="sym"){if(o.t==="equip"){snap();o.rot=o.rot?0:1;save();redraw()}else editPop(o,px,py)}}},cancel:()=>{}}}
+          end:()=>{if(moved){save()}else{HIST.u.pop();if(h.k==="sym")editPop(o,px,py)}},cancel:()=>{}}}
       sel=null;redraw();return null}
-    if(T==="equip"){const ex=p.syms.find(o=>o.t==="equip"&&inPoly(m,equipRect(o)));snap();if(ex){ex.rot=ex.rot?0:1;save();redraw();return null}
-      const dev=s.devices[0];if(!dev){HIST.u.pop();toast("Pick equipment in step 1 first");return null}const o={t:"equip",x:Math.round(m[0]*20)/20,y:Math.round(m[1]*20)/20,rot:0,dev};p.syms.push(o);save();redraw();if(equipFits(o,p)===false)toast("Equipment footprint does not fit here");return null}
+    if(T==="equip"){const ex=p.syms.find(o=>o.t==="equip"&&inPoly(m,equipRect(o)));snap();
+      if(ex){const orig=[ex.x,ex.y],start=[px,py];let moved=false;sel=ex;redraw();
+        return {move:ev=>{const [x,y]=pos(ev);if(!moved&&Math.hypot(x-start[0],y-start[1])<6)return;moved=true;const q=toM(x,y);ex.x=orig[0]+q[0]-m[0];ex.y=orig[1]+q[1]-m[1];redraw()},
+          end:()=>{if(!moved){ex.rot=ex.rot?0:1}ex.x=Math.round(ex.x*100)/100;ex.y=Math.round(ex.y*100)/100;save();redraw();if(equipFits(ex,p)===false)toast("Equipment footprint does not fit here")},cancel:()=>{ex.x=orig[0];ex.y=orig[1];HIST.u.pop();redraw()}}}
+      const dev=s.devices[0];if(!dev){HIST.u.pop();toast("Pick equipment in step 1 first");return null}
+      const o={t:"equip",x:m[0],y:m[1],rot:0,dev};p.syms.push(o);sel=o;redraw();
+      return {move:ev=>{const [x,y]=pos(ev);const q=toM(x,y);o.x=q[0];o.y=q[1];redraw()},
+        end:ev=>{o.x=Math.round(o.x*100)/100;o.y=Math.round(o.y*100)/100;save();redraw();if(equipFits(o,p)===false)toast("Equipment footprint does not fit here");const [x,y]=ev?pos(ev):[px,py];editPop(o,x,y)},
+        cancel:()=>{p.syms.pop();HIST.u.pop();sel=null;redraw()}}}
     /* column, door and points: place, drag into position, then edit */
     snap();let o;
     if(T==="col"){o={t:"col",x:m[0],y:m[1],w:lastCol.w,d:lastCol.d};snapCol(p,o,tolM()*0.9)}
@@ -986,13 +998,14 @@ function editPop(o,px,py){
   closePop();const p=site().plan,box=$("#cbox");sel=o;
   let fields;
   if(o.t==="col"){const g=colGaps(p,o);fields=[["w","Width (m)",f2(o.w)],["d","Depth (m)",f2(o.d)],["l","From left wall (m)",g.l!==null?f2(g.l):""],["t","From top wall (m)",g.t!==null?f2(g.t):""]]}
-  else if(o.t==="door")fields=[["w","Door clear width (m)",o.w||""]];
+  else if(o.t==="door")fields=[["w","Door clear width (m)",o.w||""],["h","Door clear height (m)",o.h||""]];
+  else if(o.t==="equip"){const g=colGaps(p,o);fields=[["l","From left wall (m)",g.l!==null?f2(g.l):""],["t","From top wall (m)",g.t!==null?f2(g.t):""]]}
   else fields=[["h","Height from floor (m)",o.h||""]];
   pop=document.createElement("div");pop.className="pop";
   pop.innerHTML=`<div class="row" style="justify-content:space-between"><b>${SYM[o.t].l}</b><button class="btn small" data-x>✕</button></div>
-   <span class="hint">Shoot with the laser or type. The highlighted field takes the next reading.</span>
+   <span class="hint">Shoot with the laser or type. The highlighted field takes the next reading.${o.t==="equip"?" Drag the footprint with the Pencil to move it.":""}</span>
    ${fields.map(([k,l,v],i)=>`<label class="pf ${i===0?"on":""}" data-pf="${k}"><span>${l}</span><input type="text" inputmode="decimal" data-k="${k}" value="${esc(v)}"></label>`).join("")}
-   <div class="row"><button class="btn small primary" data-ok>Done</button>${o.t==="col"?'<button class="btn small" data-rot>Rotate</button>':""}<button class="btn small warn" data-del>Delete</button></div>`;
+   <div class="row"><button class="btn small primary" data-ok>Done</button>${o.t==="col"||o.t==="equip"?'<button class="btn small" data-rot>Rotate</button>':""}<button class="btn small warn" data-del>Delete</button></div>`;
   box.appendChild(pop);const bw=box.clientWidth,bh=box.clientHeight;
   pop.style.left=Math.max(6,Math.min(px<bw/2?px+50:px-300,bw-262))+"px";pop.style.top=Math.max(60,Math.min(py-20,bh-pop.offsetHeight-8))+"px";
   let active=0;const ins=[...pop.querySelectorAll("input")];
@@ -1004,16 +1017,21 @@ function editPop(o,px,py){
       const g=colGaps(p,o),L=val("l"),T=val("t");
       if(L!==null&&g.l!==null){const wallX=o.x-o.w/2-g.l;o.x=wallX+L+o.w/2}
       if(T!==null&&g.t!==null){const wallY=o.y-o.d/2-g.t;o.y=wallY+T+o.d/2}}
-    else if(o.t==="door"){const v=val("w");o.w=v===null?"":f2(v)}
+    else if(o.t==="door"){const v=val("w"),h=val("h");o.w=v===null?"":f2(v);o.h=h===null?"":f2(h)}
+    else if(o.t==="equip"){const g=colGaps(p,o),bx=itemBox(o),L=val("l"),T=val("t");
+      if(L!==null&&g.l!==null){const wallX=bx.x0-g.l;o.x+=(wallX+L)-bx.x0}
+      if(T!==null&&g.t!==null){const wallY=bx.y0-g.t;o.y+=(wallY+T)-bx.y0}
+      if(equipFits(o,p)===false)toast("Equipment footprint does not fit here")}
     else{const v=val("h");o.h=v===null?"":f2(v)}
     save();closePop();setTarget(planTargetDefault());planRedraw()};
   pop.onclick=e=>{const d=e.target.dataset;
     if(d.ok!==undefined)commit();
     if(d.x!==undefined){closePop();sel=null;setTarget(planTargetDefault());planRedraw()}
     if(d.del!==undefined){snap();p.syms=p.syms.filter(x=>x!==o);sel=null;save();closePop();setTarget(planTargetDefault());planRedraw()}
-    if(d.rot!==undefined){snap();[o.w,o.d]=[o.d,o.w];pop.querySelector('[data-k="w"]').value=f2(o.w);pop.querySelector('[data-k="d"]').value=f2(o.d);save();planRedraw()}};
+    if(d.rot!==undefined){snap();if(o.t==="equip"){o.rot=o.rot?0:1;const g=colGaps(p,o);const L=pop.querySelector('[data-k="l"]'),T=pop.querySelector('[data-k="t"]');if(L)L.value=g.l!==null?f2(g.l):"";if(T)T.value=g.t!==null?f2(g.t):""}
+      else{[o.w,o.d]=[o.d,o.w];pop.querySelector('[data-k="w"]').value=f2(o.w);pop.querySelector('[data-k="d"]').value=f2(o.d)}save();planRedraw()}};
   pop.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();if(active<ins.length-1){ins[active+1].focus()}else commit()}};
-  setActive(0);
+  if(ins.length)setActive(0);
 }
 function closePop(){if(pop){pop.remove();pop=null}}
 
@@ -1196,7 +1214,7 @@ function vLibrary(){
     <tr><td><b>Responsibility</b></td><td>Customer, Experia or Vendor. This is the standard owner; you can change it per site.</td></tr>
     <tr><td><b>Verify</b></td><td>Laser, Meter, Visual or Document. Laser items take readings straight from the GLM.</td></tr>
     <tr><td><b>Rule / Min / Max</b></td><td><span class="mono">&gt;=</span> with Min, <span class="mono">&lt;=</span> with Max, or <span class="mono">range</span> with both. The app passes or fails the reading by itself.</td></tr>
-    <tr><td><b>Link</b></td><td><span class="mono">area</span>, <span class="mono">ceiling</span> or <span class="mono">door</span> to fill the item from the room plan.</td></tr>
+    <tr><td><b>Link</b></td><td><span class="mono">area</span>, <span class="mono">ceiling</span>, <span class="mono">door</span> (door width) or <span class="mono">doorh</span> (door height) to fill the item from the room plan.</td></tr>
     <tr><td><b>Source</b></td><td>Where the requirement comes from, for example Matrix E1 or SPS §3.2.3.</td></tr></tbody></table></div></div>
   <div class="card"><h2 style="margin-bottom:8px">Paste from Excel</h2><textarea id="libpaste" rows="8" placeholder="Paste rows copied from Excel here" style="font-family:var(--f-mono);font-size:12.5px"></textarea>
   <div class="row" style="margin-top:10px"><button class="btn primary" id="libimport">Use this library</button><button class="btn" id="libcopy">Copy current library</button>${state.libRaw?'<button class="btn warn" id="libreset">Back to built-in library</button>':""}</div>
