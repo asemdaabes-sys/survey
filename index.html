@@ -1210,7 +1210,8 @@ const ICON={
  fit:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="9" y="9" width="6" height="6"/>',
  finger:'<path d="M9 12V5a2 2 0 0 1 4 0v6M13 11a2 2 0 0 1 4 0v2M9 12a2 2 0 0 0-4 0c0 4 2.5 9 7 9 4 0 6-3 6-7v-1"/>',
  full:'<path d="M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5"/>',
- exit:'<path d="M6 6l12 12M18 6 6 18"/>'};
+ exit:'<path d="M6 6l12 12M18 6 6 18"/>',
+ cad:'<path d="M4 4h12l4 4v12H4z"/><path d="M8 16l3-8 3 8M9.2 13h3.6"/>'};
 const ic=k=>`<svg class="ti" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 const TOOLS=[["move","Move"],["pen","Pen"],["line","Line"],["col","Column"],["door","Door"],["power","Power"],["data","Data"],["eoff","E-off"],["equip","Equipment"],["erase","Eraser"]];
 const strokePts=st=>Array.isArray(st)?st:st.pts;
@@ -1235,7 +1236,21 @@ function hitItem(p,q,tol){
   for(let i=(p.lines||[]).length-1;i>=0;i--)if(segDist(q,p.lines[i].a,p.lines[i].b)<tol)return {k:"line",i,o:p.lines[i]};
   for(let i=p.ink.length-1;i>=0;i--){const pts=strokePts(p.ink[i]);for(let j=0;j<pts.length;j++){if(Math.hypot(pts[j][0]-q[0],pts[j][1]-q[1])<tol||(j&&segDist(q,pts[j-1],pts[j])<tol))return {k:"ink",i}}}
   return null}
-function planBounds(p,all){let xs=[],ys=[];if(p.walls.length)planPts(p).forEach(q=>{xs.push(q[0]);ys.push(q[1])});
+const wallT=p=>{const t=num(p.wallT);return t!==null&&t>=0?t:0.10};
+function planOrient(pts){let sa=0;for(let i=0;i<pts.length-1;i++)sa+=pts[i][0]*pts[i+1][1]-pts[i+1][0]*pts[i][1];return sa<0?-1:1}
+/* outer face points matching planPts(p): each wall moved outward by the thickness; corners joined by line intersection */
+function wallOuter(p){const pts=planPts(p),n=pts.length-1,t=wallT(p);if(n<1)return pts.map(q=>q.slice());const o=planOrient(pts);
+  const nrm=i=>{const a=pts[i],b=pts[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1])||1,dx=(b[0]-a[0])/L,dy=(b[1]-a[1])/L;return [dy*o,-dx*o,dx,dy]};
+  const meet=(i,j,q)=>{const A=nrm(i),Bn=nrm(j);const p1=[q[0]+A[0]*t,q[1]+A[1]*t],p2=[q[0]+Bn[0]*t,q[1]+Bn[1]*t];const den=A[2]*Bn[3]-A[3]*Bn[2];
+    if(Math.abs(den)<1e-6)return p1;const k=((p2[0]-p1[0])*Bn[3]-(p2[1]-p1[1])*Bn[2])/den;const m=[p1[0]+A[2]*k,p1[1]+A[3]*k];
+    return Math.hypot(m[0]-q[0],m[1]-q[1])>t*6?p1:m};
+  const out=[];const closed=p.closed&&n>=3;
+  for(let k=0;k<=n;k++){const q=pts[k];
+    if(k===0)out.push(closed?meet(n-1,0,q):[q[0]+nrm(0)[0]*t,q[1]+nrm(0)[1]*t]);
+    else if(k===n)out.push(closed?out[0].slice():[q[0]+nrm(n-1)[0]*t,q[1]+nrm(n-1)[1]*t]);
+    else out.push(meet(k-1,k,q))}
+  return out}
+function planBounds(p,all){let xs=[],ys=[];if(p.walls.length){planPts(p).forEach(q=>{xs.push(q[0]);ys.push(q[1])});wallOuter(p).forEach(q=>{xs.push(q[0]);ys.push(q[1])})}
   if(all){p.syms.forEach(o=>itemCorners(o).forEach(c=>{xs.push(c[0]);ys.push(c[1])}));(p.lines||[]).forEach(l=>{xs.push(l.a[0],l.b[0]);ys.push(l.a[1],l.b[1])});p.ink.forEach(st=>strokePts(st).forEach(q=>{xs.push(q[0]);ys.push(q[1])}))}
   if(!xs.length){xs=[0,6];ys=[0,5]}return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]}
 
@@ -1254,6 +1269,7 @@ function vPlan(){
         <div class="tgroup">
           <button class="tool" id="pundo" title="Undo">${ic("undo")}<span class="tl">Undo</span></button>
           <button class="tool" id="predo" title="Redo">${ic("redo")}<span class="tl">Redo</span></button>
+          <button class="tool" id="pdxf" title="Export to AutoCAD">${ic("cad")}<span class="tl">AutoCAD</span></button>
           <button class="tool" id="pfit" title="Fit to screen">${ic("fit")}<span class="tl">Fit</span></button>
           <button class="tool" id="pfinger" aria-pressed="${fingerDraws}" title="Let a finger draw">${ic("finger")}<span class="tl">${fingerDraws?"Finger draws":"Finger moves"}</span></button>
           <button class="tool" id="pfull" title="Full screen">${ic(planFull?"exit":"full")}<span class="tl">${planFull?"Exit full screen":"Full screen"}</span></button>
@@ -1289,6 +1305,8 @@ function vPlan(){
       <dt>Perimeter</dt><dd>${p.walls.length?f2(planPerim(p))+" m":"—"}</dd>
       <dt>Closure error</dt><dd>${p.closed&&p.gap!=null?f2(p.gap)+" m":"—"}</dd>
       <dt>Columns</dt><dd>${p.syms.filter(o=>o.t==="col").length}</dd></dl>
+      <div style="margin-top:10px" class="hint">Wall thickness (drawn outward from the measured inside face)</div>
+      <div class="row"><input type="text" inputmode="decimal" id="wallt" value="${Math.round(wallT(p)*1000)/10}" style="width:80px"><span>cm</span></div>
       <div style="margin-top:10px" class="hint">Ceiling height</div>
       <div class="meas"><input type="text" inputmode="decimal" id="ceil" value="${esc(p.ceiling)}" placeholder="Shoot floor to ceiling"><button class="tg" id="ceiltg" aria-pressed="${target&&target.key==="ceiling"}">◎</button></div>
     </div>
@@ -1327,10 +1345,12 @@ function drawPlan(ctx,W,H,s,opt={}){
   const pts=planPts(p);
   if(p.closed&&pts.length>3){ctx.fillStyle="rgba(11,110,127,.07)";ctx.beginPath();pts.forEach((q,i)=>i?ctx.lineTo(X(q[0]),Y(q[1])):ctx.moveTo(X(q[0]),Y(q[1])));ctx.closePath();ctx.fill()}
   /* walls */
-  ctx.strokeStyle=ink;ctx.lineWidth=Math.max(4,Math.min(10,0.2*sc));ctx.lineCap="square";
-  for(let i=0;i<pts.length-1;i++){ctx.beginPath();ctx.moveTo(X(pts[i][0]),Y(pts[i][1]));ctx.lineTo(X(pts[i+1][0]),Y(pts[i+1][1]));ctx.stroke()}
-  let sa=0;for(let i=0;i<pts.length-1;i++)sa+=pts[i][0]*pts[i+1][1]-pts[i+1][0]*pts[i][1];const orient=sa<0?-1:1;
-  p.walls.forEach((w,i)=>{const a=pts[i],b=pts[i+1],d=headVec(wh(w)),nx=d[1]*orient,ny=-d[0]*orient;tag(ctx,w.len.toFixed(2)+" m",X((a[0]+b[0])/2)+nx*26,Y((a[1]+b[1])/2)+ny*26,acc,bg)});
+  const outer=wallOuter(p),WT=wallT(p);
+  ctx.fillStyle=ink;ctx.strokeStyle=ink;ctx.lineWidth=1;ctx.lineJoin="miter";
+  for(let i=0;i<pts.length-1;i++){ctx.beginPath();ctx.moveTo(X(pts[i][0]),Y(pts[i][1]));ctx.lineTo(X(pts[i+1][0]),Y(pts[i+1][1]));ctx.lineTo(X(outer[i+1][0]),Y(outer[i+1][1]));ctx.lineTo(X(outer[i][0]),Y(outer[i][1]));ctx.closePath();ctx.fill();ctx.stroke()}
+  if(WT<0.005){ctx.lineWidth=3;for(let i=0;i<pts.length-1;i++){ctx.beginPath();ctx.moveTo(X(pts[i][0]),Y(pts[i][1]));ctx.lineTo(X(pts[i+1][0]),Y(pts[i+1][1]));ctx.stroke()}}
+  const orient=planOrient(pts);
+  p.walls.forEach((w,i)=>{const a=pts[i],b=pts[i+1],d=headVec(wh(w)),nx=d[1]*orient,ny=-d[0]*orient;const off=WT*sc+20;tag(ctx,w.len.toFixed(2)+" m",X((a[0]+b[0])/2)+nx*off,Y((a[1]+b[1])/2)+ny*off,acc,bg)});
   planCorners(p).forEach(c=>{if(Math.abs(c.ang-90)<0.3)return;const q=pts[c.i],h1=wh(p.walls[(c.i-1+p.walls.length)%p.walls.length]),h2=wh(p.walls[c.i]);
     const v1=headVec(h1+180),v2=headVec(h2);let bx=v1[0]+v2[0],by=v1[1]+v2[1];const bl=Math.hypot(bx,by)||1;bx/=bl;by/=bl;
     tag(ctx,c.ang.toFixed(1)+"°",X(q[0])+bx*30,Y(q[1])+by*30,sig,bg)});
@@ -1513,6 +1533,64 @@ function vPhotos(){
       <label class="btn small photobtn">From library<input type="file" accept="image/*" multiple data-scat="${esc(c)}"></label></div></section>`}).join("")}</div>
   <div class="row" style="margin-top:16px"><button class="btn primary" data-go="4">Continue to report →</button></div>`;
 }
+/* ---- AutoCAD export: DXF (R12, millimetres, one layer per kind of object) ---- */
+function planDXF(s){
+  const p=s.plan,o=[],MM=1000;p.lines=p.lines||[];
+  const g=(c,v)=>{o.push(String(c));o.push(String(v))};
+  const fx=x=>(x*MM).toFixed(1),fy=y=>(-y*MM).toFixed(1);          /* drawing y points down, CAD y points up */
+  const clean=t=>String(t).replace(/[^\x20-\x7E]/g,c=>({"²":"2","°":"%%d","×":"x","–":"-","—":"-","·":"-","≥":">=","≤":"<="}[c]||""));
+  const LAYERS=[["A-WALL",7],["A-WALL-DIMS",4],["A-ANGLE",30],["S-COLUMN",8],["A-DOOR",3],["E-POWER",30],["E-DATA",5],["E-EOFF",1],["Q-EQUIPMENT",3],["A-LINES",7],["A-SKETCH",150],["A-TEXT",7]];
+  const line=(L,a,b)=>{g(0,"LINE");g(8,L);g(10,fx(a[0]));g(20,fy(a[1]));g(30,0);g(11,fx(b[0]));g(21,fy(b[1]));g(31,0)};
+  const poly=(L,pts,closed)=>{g(0,"POLYLINE");g(8,L);g(66,1);g(10,0);g(20,0);g(30,0);g(70,closed?1:0);pts.forEach(q=>{g(0,"VERTEX");g(8,L);g(10,fx(q[0]));g(20,fy(q[1]));g(30,0)});g(0,"SEQEND");g(8,L)};
+  const circle=(L,c,r)=>{g(0,"CIRCLE");g(8,L);g(10,fx(c[0]));g(20,fy(c[1]));g(30,0);g(40,(r*MM).toFixed(1))};
+  const arc=(L,c,r,a0,a1)=>{g(0,"ARC");g(8,L);g(10,fx(c[0]));g(20,fy(c[1]));g(30,0);g(40,(r*MM).toFixed(1));g(50,a0.toFixed(3));g(51,a1.toFixed(3))};
+  const text=(L,q,t,h=0.15,rot=0)=>{g(0,"TEXT");g(8,L);g(10,fx(q[0]));g(20,fy(q[1]));g(30,0);g(40,(h*MM).toFixed(1));g(1,clean(t));if(rot)g(50,rot.toFixed(2));g(72,1);g(73,2);g(11,fx(q[0]));g(21,fy(q[1]));g(31,0)};
+  /* header and layers */
+  g(0,"SECTION");g(2,"HEADER");g(9,"$ACADVER");g(1,"AC1009");g(9,"$INSBASE");g(10,0);g(20,0);g(30,0);g(9,"$LUNITS");g(70,2);g(0,"ENDSEC");
+  g(0,"SECTION");g(2,"TABLES");
+  g(0,"TABLE");g(2,"LTYPE");g(70,1);g(0,"LTYPE");g(2,"CONTINUOUS");g(70,0);g(3,"Solid line");g(72,65);g(73,0);g(40,0);g(0,"ENDTAB");
+  g(0,"TABLE");g(2,"LAYER");g(70,LAYERS.length);LAYERS.forEach(([n,c])=>{g(0,"LAYER");g(2,n);g(70,0);g(62,c);g(6,"CONTINUOUS")});g(0,"ENDTAB");
+  g(0,"ENDSEC");
+  g(0,"SECTION");g(2,"ENTITIES");
+  /* walls, lengths, corner angles */
+  const pts=planPts(p);let sa=0;for(let i=0;i<pts.length-1;i++)sa+=pts[i][0]*pts[i+1][1]-pts[i+1][0]*pts[i][1];const orient=sa<0?-1:1;
+  const outer=wallOuter(p),closedW=p.closed&&pts.length>3;
+  if(pts.length>1){poly("A-WALL",closedW?pts.slice(0,-1):pts,closedW);if(wallT(p)>0.005){poly("A-WALL",closedW?outer.slice(0,-1):outer,closedW);
+    if(!closedW){line("A-WALL",pts[0],outer[0]);line("A-WALL",pts[pts.length-1],outer[outer.length-1])}}}
+  p.walls.forEach((w,i)=>{const a=pts[i],b=pts[i+1],d=headVec(wh(w)),nx=d[1]*orient,ny=-d[0]*orient;let ang=-wh(w);if(ang<-90||ang>90)ang+=180;ang=((ang+540)%360)-180;
+    text("A-WALL-DIMS",[(a[0]+b[0])/2+nx*(wallT(p)+0.25),(a[1]+b[1])/2+ny*(wallT(p)+0.25)],w.len.toFixed(2)+" m",0.15,ang)});
+  planCorners(p).forEach(c=>{if(Math.abs(c.ang-90)<0.3)return;const q=pts[c.i];text("A-ANGLE",[q[0],q[1]+0.35],c.ang.toFixed(1)+"°",0.12)});
+  /* items */
+  const segs=wallSegs(p);
+  p.syms.forEach(it=>{
+    if(it.t==="col"){const r=colRect(it);poly("S-COLUMN",r,true);line("S-COLUMN",r[0],r[2]);line("S-COLUMN",r[1],r[3]);text("S-COLUMN",[it.x,it.y+it.d/2+0.15],Math.round(it.w*100)+"x"+Math.round(it.d*100),0.1);return}
+    if(it.t==="equip"){poly("Q-EQUIPMENT",equipRect(it),true);text("Q-EQUIPMENT",[it.x,it.y],(LIB[it.dev]?.name||"Equipment"),0.18);return}
+    if(it.t==="door"){const w=num(it.w)||0.9;let best=null,bd=1e9;segs.forEach(([a,b])=>{const d=segDist([it.x,it.y],a,b);if(d<bd){bd=d;best=[a,b]}});
+      let dv=[1,0];if(best){const L=Math.hypot(best[1][0]-best[0][0],best[1][1]-best[0][1])||1;dv=[(best[1][0]-best[0][0])/L,(best[1][1]-best[0][1])/L]}
+      const A=[it.x-dv[0]*w/2,it.y-dv[1]*w/2],Bp=[it.x+dv[0]*w/2,it.y+dv[1]*w/2];let nv=[-dv[1],dv[0]];
+      if(p.closed&&!inPoly([it.x+nv[0]*0.2,it.y+nv[1]*0.2],planPts(p)))nv=[-nv[0],-nv[1]];
+      const leafEnd=[A[0]+nv[0]*w,A[1]+nv[1]*w];line("A-DOOR",A,Bp);line("A-DOOR",A,leafEnd);
+      const a0=Math.atan2(-(Bp[1]-A[1]),Bp[0]-A[0])*180/Math.PI,a1=Math.atan2(-(leafEnd[1]-A[1]),leafEnd[0]-A[0])*180/Math.PI;
+      let s0=a0,s1=a1;if(((s1-s0+360)%360)>180){[s0,s1]=[s1,s0]}arc("A-DOOR",A,w,(s0+360)%360,(s1+360)%360);
+      text("A-DOOR",[it.x+nv[0]*(w+0.2),it.y+nv[1]*(w+0.2)],"DOOR W "+(it.w||"?")+(it.h?" x H "+it.h:""),0.12);return}
+    const L={power:"E-POWER",data:"E-DATA",eoff:"E-EOFF"}[it.t];if(!L)return;
+    circle(L,[it.x,it.y],0.1);text(L,[it.x,it.y],{power:"P",data:"D",eoff:"E"}[it.t],0.1);if(it.h)text(L,[it.x+0.45,it.y],"h "+it.h,0.1)});
+  p.lines.forEach(l=>{line("A-LINES",l.a,l.b);const L=Math.hypot(l.b[0]-l.a[0],l.b[1]-l.a[1]);text("A-LINES",[(l.a[0]+l.b[0])/2,(l.a[1]+l.b[1])/2-0.15],L.toFixed(2)+" m",0.1)});
+  p.ink.forEach(st=>{const q=strokePts(st);if(q.length>1)poly("A-SKETCH",q.map(v=>[v[0],v[1]]),false)});
+  /* title */
+  const [x0,y0,x1,y1]=planBounds(p,true),area=planArea(p);
+  const tl=[x0,y1+0.8];text("A-TEXT",tl,s.name,0.25);
+  text("A-TEXT",[x0+(x1-x0)/2,y1+1.2],[s.loc,s.date,area!==null?"Area "+f2(area)+" m²":"",num(p.ceiling)!==null?"Ceiling "+f2(num(p.ceiling))+" m":"","Units: mm"].filter(Boolean).join("  |  "),0.12);
+  g(0,"ENDSEC");g(0,"EOF");
+  return o.join("\r\n");
+}
+function exportDXF(s){
+  if(!s.plan.walls.length&&!s.plan.syms.length){toast("Draw the room first");return}
+  const txt=planDXF(s);
+  deliver("AutoCAD drawing (DXF)",new Blob([txt],{type:"application/dxf"}),safeName(s)+"_plan.dxf","application/dxf",
+    `<b>In AutoCAD:</b> open the file directly (File → Open, file type DXF) or use INSERT to place it in an existing drawing. Units are millimetres; each kind of object is on its own layer (walls, columns, doors, power, data, equipment, sketch).<br><br><b>If no option works:</b> copy the text below, paste it into a new text file on the PC and save it with the ending <span class="mono">.dxf</span>.<pre class="csv" id="dxftxt">${esc(txt.slice(0,4000))}${txt.length>4000?"\n…":""}</pre><button class="btn small" id="dxfcopy">Copy full DXF text</button>`);
+  const cb=document.getElementById("dxfcopy");if(cb)cb.onclick=()=>{(navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast("DXF copied")).catch(()=>toast("Copy isn't allowed here; use Share or Download"))};
+}
 /* ---- report ---- */
 function planImage(s,W=900,H=640,type="png"){try{const c=document.createElement("canvas");c.width=W;c.height=H;drawPlan(c.getContext("2d"),W,H,s,{export:true});return type==="jpeg"?c.toDataURL("image/jpeg",.9):c.toDataURL("image/png")}catch(e){return ""}}
 function vReport(){
@@ -1522,7 +1600,7 @@ function vReport(){
   const photos=st.a.flatMap(r=>((s.survey[r.id]||{}).photos||[]).map(p=>({p,r})));const sph=s.sphotos||[];
   return `<div class="eyebrow">Site survey report${s.visit>1?" · Visit "+s.visit:""}</div><h1>${esc(s.name)}</h1>
   <p class="lede">${esc(s.loc||"Location not set")} · ${esc(s.date)} · ${s.devices.map(d=>esc((LIB[d]?.name||d)+(s.models[d]?" ("+s.models[d]+")":""))).join(", ")||"No equipment"}${s.surveyor?" · Surveyed by "+esc(s.surveyor):""}${s.example?'<span class="example">Example data</span>':""}</p>
-  <div class="row noprint" style="margin-bottom:16px"><button class="btn primary" id="mkpdf">Create PDF report</button><button class="btn" id="dlcsv">Export Excel (CSV)</button><button class="btn" id="dlplan" ${img?"":"disabled"}>Save plan image</button><button class="btn" id="backup">Backup site</button><button class="btn" id="restore">Restore</button><button class="btn" id="visit2" ${fails.length||open.length?"":"disabled"}>Start next visit</button></div>
+  <div class="row noprint" style="margin-bottom:16px"><button class="btn primary" id="mkpdf">Create PDF report</button><button class="btn" id="dlcsv">Export Excel (CSV)</button><button class="btn" id="dldxf" ${s.plan.walls.length?"":"disabled"}>Export AutoCAD (DXF)</button><button class="btn" id="dlplan" ${img?"":"disabled"}>Save plan image</button><button class="btn" id="backup">Backup site</button><button class="btn" id="restore">Restore</button><button class="btn" id="visit2" ${fails.length||open.length?"":"disabled"}>Start next visit</button></div>
   <div class="tiles"><div class="tile hero"><div class="k">Site readiness</div><div class="v">${st.pct}%</div><div style="font-size:12px;opacity:.75">of checked items pass</div></div>
     <div class="tile"><div class="k">Applicable items</div><div class="v">${st.total}</div></div>
     <div class="tile"><div class="k">Not OK</div><div class="v" style="color:var(--bad)">${st.bad}</div></div>
@@ -1765,6 +1843,7 @@ function bindStep(){
   b("closeroom",()=>{snap();closeRoom();render()});
   b("clearplan",e=>{const btn=e.target;if(!btn.dataset.arm){btn.dataset.arm=1;btn.textContent="Tap again";setTimeout(()=>{btn.textContent="Clear";delete btn.dataset.arm},2500);return}snap();s.plan=blankPlan();cam={z:1,tx:0,ty:0};save();render();toast("Plan cleared")});
   b("ceiltg",()=>{setTarget(target&&target.key==="ceiling"?planTargetDefault():ceilTarget());render()});
+  const wt=$("#wallt");if(wt)wt.onchange=()=>{const v=num(wt.value);if(v===null||v<0||v>100){toast("Thickness must be between 0 and 100 cm");render();return}snap();s.plan.wallT=v/100;save();render()};
   const at=$("#autoturn");if(at)at.onchange=()=>{s.plan.autoTurn=at.checked;save()};
   const ce=$("#ceil");if(ce)ce.onchange=()=>{snap();s.plan.ceiling=ce.value.trim()===""?"":f2(num(ce.value)??0);save();render()};
   // report
@@ -1776,6 +1855,7 @@ function bindStep(){
     else{const ib=await (await fetch(img)).blob();toast(err);deliver("Report image",ib,safeName(s)+"_report.png","image/png",fb)}});
   b("dlcsv",()=>{const st=stats(s);deliver("Excel sheet",new Blob([toCSV(s,st)],{type:"text/csv"}),safeName(s)+"_survey.csv","text/csv",
     `<b>If no option works:</b> copy the table, open Excel on the iPad and paste it.<pre class="csv" id="cpt">${esc(toTSV(s,st))}</pre><button class="btn small" data-copy="#cpt">Copy table</button>`)});
+  b("dldxf",()=>exportDXF(s));b("pdxf",()=>exportDXF(site()));
   b("dlplan",async()=>{const d=planImage(s,1600,1140);const blob=await (await fetch(d)).blob();deliver("Room plan image",blob,safeName(s)+"_plan.png","image/png",
     `<b>If no option works:</b> press and hold the plan below and choose <b>Save to Photos</b>.<img class="fbimg" src="${d}" alt="Room plan">`)});
   b("backup",()=>backupSite(s));b("restore",restorePrompt);b("visit2",nextVisit);
