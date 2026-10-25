@@ -159,7 +159,12 @@ canvas#plan{display:block;width:100%;touch-action:none;-webkit-user-select:none;
 .dirpad button{padding:10px 0;font-size:18px}
 .dirpad button[aria-pressed="true"]{background:var(--accent);color:var(--panel);border-color:var(--accent)}
 .walllist{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;margin:0;padding:0;list-style:none}
-.walllist li{display:grid;grid-template-columns:70px 28px 1fr;gap:6px;align-items:center;font-size:13px}
+.walllist li{display:grid;grid-template-columns:58px 22px 1fr 64px;gap:6px;align-items:center;font-size:13px}
+.walllist .wa{display:inline-flex;color:var(--accent)}
+.anglebox{display:flex;flex-direction:column;gap:8px;margin:10px 0;padding:10px;border:1px dashed var(--signal);border-radius:10px}
+.anglebox .seg button{padding:6px 10px}
+.tri{display:flex;flex-direction:column;gap:6px;color:var(--ink)}
+.tri .pf{grid-template-columns:1fr 80px}
 .walllist input{width:100%;padding:5px 8px;font-family:var(--f-mono)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
 .kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--f-mono);font-weight:600;text-align:right}
@@ -920,7 +925,7 @@ function buildLib(raw){
 const STORE="experia-survey-studio-v3";
 let state=null;
 try{state=JSON.parse(localStorage.getItem(STORE))}catch(e){}
-function blankPlan(){return {walls:[],nextDir:0,autoTurn:true,closed:false,gap:null,ceiling:"",syms:[],ink:[]}}
+function blankPlan(){return {walls:[],nextH:0,corner:90,turnDir:1,autoTurn:true,closed:false,gap:null,ceiling:"",syms:[],ink:[]}}
 function blankSite(name,loc,devices,example){return {id:"S"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,loc:loc||"",date:new Date().toISOString().slice(0,10),surveyor:"",devices:devices||[],models:{},mkey:{},sel:{},resp:{},extras:[],survey:{},plan:blankPlan(),example:!!example,visit:1}}
 let LIB=buildLib((state&&state.libRaw)||DEFAULT_LIB);
 const idOf=(d,t)=>(LIB[d]?.reqs.find(r=>r.text===t)||{}).id;
@@ -999,8 +1004,22 @@ function stats(s=site()){
 /* =====================================================================
    4. ROOM PLAN GEOMETRY (metres)
    ===================================================================== */
-const DIRS=[[1,0],[0,1],[-1,0],[0,-1]], ARROW=["→","↓","←","↑"];
-function planPts(p){let x=0,y=0;const pts=[[0,0]];p.walls.forEach(w=>{const d=DIRS[w.dir];x+=d[0]*w.len;y+=d[1]*w.len;pts.push([x,y])});return pts}
+const ARROW=["→","↓","←","↑"];
+/* walls are stored with a heading in degrees (0 = right, 90 = down on screen); old plans used dir 0–3 */
+const normA=a=>((a%360)+360)%360, norm180=a=>{a=normA(a);return a>180?a-360:a};
+const wh=w=>w.h!==undefined?w.h:(w.dir||0)*90;
+const nextH=p=>p.nextH!==undefined?p.nextH:(p.nextDir||0)*90;
+const headVec=h=>{const r=h*Math.PI/180;return [Math.cos(r),Math.sin(r)]};
+const r6=v=>Math.round(v*1e6)/1e6;
+function lastH(p){return p.walls.length?wh(p.walls[p.walls.length-1]):null}
+/* inside angle at a corner from the turn between two headings */
+const cornerOf=(h1,h2)=>180-Math.abs(norm180(h2-h1));
+function setCorner(p,c,dirSign){p.corner=c;if(dirSign)p.turnDir=dirSign;const l=lastH(p);if(l!==null)p.nextH=r6(normA(l+(p.turnDir||1)*(180-c)))}
+const hName=h=>{h=normA(Math.round(h*10)/10);return h%90===0?ARROW[h/90]:Math.round(h)+"°"};
+const hArrow=h=>`<svg viewBox="0 0 24 24" width="18" height="18" style="transform:rotate(${h}deg)" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>`;
+function planPts(p){let x=0,y=0;const pts=[[0,0]];p.walls.forEach(w=>{const d=headVec(wh(w));x=r6(x+d[0]*w.len);y=r6(y+d[1]*w.len);pts.push([x,y])});return pts}
+function planCorners(p){const out=[];const n=p.walls.length;for(let i=1;i<n;i++)out.push({i,ang:cornerOf(wh(p.walls[i-1]),wh(p.walls[i]))});
+  if(p.closed&&n>=3)out.push({i:0,ang:cornerOf(wh(p.walls[n-1]),wh(p.walls[0]))});return out}
 function planArea(p){if(!p.closed||p.walls.length<3)return null;const pts=planPts(p);let a=0;for(let i=0;i<pts.length-1;i++)a+=pts[i][0]*pts[i+1][1]-pts[i+1][0]*pts[i][1];return Math.abs(a)/2}
 function planPerim(p){return p.walls.reduce((t,w)=>t+w.len,0)}
 function inPoly(pt,pts){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const [xi,yi]=pts[i],[xj,yj]=pts[j];if(((yi>pt[1])!==(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/((yj-yi)||1e-9)+xi))c=!c}return c}
@@ -1008,20 +1027,17 @@ function equipRect(e){const L=LIB[e.dev]||{foot:[2,4],mfoot:{}};const mk=(site()
 function equipFits(e,p){if(!p.closed)return null;const pts=planPts(p);return equipRect(e).every(c=>inPoly(c,pts))}
 function addWall(len){const p=site().plan;if(p.closed){toast("Room is closed. Undo a wall to continue.");return}if(len>0.05)snap();
   if(!(len>0.05)){toast("Wall length must be more than 0.05 m");return}
-  p.walls.push({dir:p.nextDir,len:Math.round(len*1000)/1000});
-  if(p.autoTurn)p.nextDir=(p.nextDir+1)%4;
+  const h=nextH(p);p.walls.push({h,len:Math.round(len*1000)/1000});
+  if(p.autoTurn){p.corner=90;p.nextH=r6(normA(h+(p.turnDir||1)*90))}else p.nextH=h;
   const pts=planPts(p),end=pts[pts.length-1],gap=Math.hypot(end[0],end[1]);
   if(p.walls.length>=4&&gap<0.12){p.closed=true;p.gap=gap;toast("Room closed automatically · closure error "+f2(gap)+" m")}
   save();
 }
 function closeRoom(){const p=site().plan;if(p.walls.length<2){toast("Measure at least two walls first");return}
-  let pts=planPts(p),[x,y]=pts[pts.length-1];
-  if(Math.abs(x)>0.05&&Math.abs(y)>0.05){p.walls.push({dir:x>0?2:0,len:Math.abs(x)});x=0}
-  pts=planPts(p);[x,y]=pts[pts.length-1];
-  if(Math.abs(y)>0.05)p.walls.push({dir:y>0?3:1,len:Math.abs(y)},);
-  else if(Math.abs(x)>0.05)p.walls.push({dir:x>0?2:0,len:Math.abs(x)});
+  const pts=planPts(p),[x,y]=pts[pts.length-1],L=Math.hypot(x,y);
+  if(L>0.05)p.walls.push({h:r6(normA(Math.atan2(-y,-x)*180/Math.PI)),len:L});
   p.walls.forEach(w=>w.len=Math.round(w.len*1000)/1000);
-  p.closed=true;p.gap=0;save();toast("Room closed. Missing wall added from geometry")}
+  p.closed=true;p.gap=0;save();toast("Room closed. Last wall and its angle calculated from the other walls")}
 /* push plan values into linked requirements */
 function syncLinks(s){
   const p=s.plan,area=planArea(p);
@@ -1193,9 +1209,8 @@ function colRect(o){const hw=o.w/2,hd=o.d/2;return [[o.x-hw,o.y-hd],[o.x+hw,o.y-
 function itemCorners(o){return o.t==="equip"?equipRect(o):o.t==="col"?colRect(o):[[o.x,o.y]]}
 function wallSegs(p){const pts=planPts(p),out=[];for(let i=0;i<pts.length-1;i++)out.push([pts[i],pts[i+1]]);return out}
 /* distance from (x,y) along an axis direction to the nearest wall; null if none */
-function rayWall(p,x,y,dx,dy){let best=null;wallSegs(p).forEach(([a,b])=>{
-  if(a[0]===b[0]&&dx){const t=(a[0]-x)/dx;if(t>1e-6&&y>=Math.min(a[1],b[1])-1e-6&&y<=Math.max(a[1],b[1])+1e-6&&(best===null||t<best))best=t}
-  if(a[1]===b[1]&&dy){const t=(a[1]-y)/dy;if(t>1e-6&&x>=Math.min(a[0],b[0])-1e-6&&x<=Math.max(a[0],b[0])+1e-6&&(best===null||t<best))best=t}});return best}
+function rayWall(p,x,y,dx,dy){let best=null;wallSegs(p).forEach(([a,b])=>{const ex=b[0]-a[0],ey=b[1]-a[1],den=dx*ey-dy*ex;if(Math.abs(den)<1e-12)return;
+  const t=((a[0]-x)*ey-(a[1]-y)*ex)/den,u=((a[0]-x)*dy-(a[1]-y)*dx)/den;if(t>1e-6&&u>=-1e-6&&u<=1+1e-6&&(best===null||t<best))best=t});return best}
 function itemBox(o){const r=itemCorners(o);const xs=r.map(c=>c[0]),ys=r.map(c=>c[1]);return {x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)}}
 function colGaps(p,o){const b=itemBox(o);return {l:rayWall(p,b.x0,o.y,-1,0),r:rayWall(p,b.x1,o.y,1,0),t:rayWall(p,o.x,b.y0,0,-1),b:rayWall(p,o.x,b.y1,0,1)}}
 function snapCol(p,o,tol){const hw=o.w/2,hd=o.d/2;wallSegs(p).forEach(([a,b])=>{
@@ -1215,6 +1230,10 @@ function planBounds(p,all){let xs=[],ys=[];if(p.walls.length)planPts(p).forEach(
   if(all){p.syms.forEach(o=>itemCorners(o).forEach(c=>{xs.push(c[0]);ys.push(c[1])}));(p.lines||[]).forEach(l=>{xs.push(l.a[0],l.b[0]);ys.push(l.a[1],l.b[1])});p.ink.forEach(st=>strokePts(st).forEach(q=>{xs.push(q[0]);ys.push(q[1])}))}
   if(!xs.length){xs=[0,6];ys=[0,5]}return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]}
 
+let triOpen=false,triAct="c";const triV={a:"1.00",b:"1.00",c:""};
+function triAngle(){const a=num(triV.a),b=num(triV.b),c=num(triV.c);if(!(a>0&&b>0&&c>0))return null;const v=(a*a+b*b-c*c)/(2*a*b);if(v<-1||v>1)return null;return Math.acos(v)*180/Math.PI}
+function triTarget(){const lab={a:"Angle – a (corner to mark)",b:"Angle – b (corner to mark)",c:"Angle – c (mark to mark)"};
+  return {key:"tri",label:lab[triAct],apply:v=>{triV[triAct]=f2(v);if(triAct!=="c"&&!triV.c)triAct="c";render()}}}
 function vPlan(){
   const s=site(),p=s.plan,area=planArea(p);
   return `<div class="eyebrow">Step 4</div><h1>Room plan</h1>
@@ -1239,10 +1258,21 @@ function vPlan(){
   <aside class="side noprint">
     <div class="card"><h2 style="margin-bottom:8px">Walls by laser</h2>
       <div class="hint" style="margin-bottom:6px">Direction of the next wall</div>
-      <div class="dirpad">${ARROW.map((a,i)=>`<button class="btn" data-dir="${i}" aria-pressed="${p.nextDir===i&&!p.closed}" ${p.closed?"disabled":""}>${a}</button>`).join("")}</div>
-      <label class="row hint" style="margin:8px 0"><input type="checkbox" id="autoturn" ${p.autoTurn?"checked":""}> Turn right after each wall</label>
+      <div class="dirpad">${ARROW.map((a,i)=>`<button class="btn" data-dir="${i}" aria-pressed="${normA(nextH(p))===i*90&&!p.closed}" ${p.closed?"disabled":""}>${a}</button>`).join("")}</div>
+      ${p.walls.length&&!p.closed?`<div class="anglebox">
+        <div class="hint">Angle at the next corner (inside the room)</div>
+        <div class="row"><input type="text" inputmode="decimal" id="cornerang" value="${esc(String(p.corner??90))}" style="width:80px"><span>°</span>
+          <div class="seg"><button data-turn="1" class="${(p.turnDir||1)===1?"on-req":""}">Turn right</button><button data-turn="-1" class="${p.turnDir===-1?"on-req":""}">Turn left</button></div></div>
+        <div class="row">${[90,135,120,45].map(a=>`<button class="btn small" data-quick="${a}">${a}°</button>`).join("")}<button class="btn small" id="trito">◎ Measure angle</button></div>
+        ${triOpen?`<div class="tri">
+          <div class="hint">Mark a point on each wall, measured from the corner (a and b). Put the laser on one mark and shoot the other mark (c).</div>
+          <svg viewBox="0 0 120 70" width="120" height="70" aria-hidden="true"><path d="M10 60 L110 60 M10 60 L70 8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M60 60 L45 30" stroke="var(--signal)" stroke-width="2" stroke-dasharray="4 3"/><text x="32" y="68" font-size="9" fill="currentColor">a</text><text x="28" y="34" font-size="9" fill="currentColor">b</text><text x="56" y="44" font-size="9" fill="var(--signal)">c</text></svg>
+          ${[["a","a  corner → mark on last wall (m)",triV.a],["b","b  corner → mark on next wall (m)",triV.b],["c","c  mark → mark, laser (m)",triV.c]].map(([k,l,v])=>`<label class="pf ${triAct===k?"on":""}"><span>${l}</span><input type="text" inputmode="decimal" data-tri="${k}" value="${esc(v)}"></label>`).join("")}
+          <div class="row"><b id="triout">${triAngle()!==null?"Angle "+triAngle().toFixed(1)+"°":"Angle —"}</b><button class="btn small primary" id="triuse" ${triAngle()===null?"disabled":""}>Use angle</button></div></div>`:""}
+      </div>`:""}
+      <label class="row hint" style="margin:8px 0"><input type="checkbox" id="autoturn" ${p.autoTurn?"checked":""}> Turn after each wall (90° unless you set another angle)</label>
       <div class="row"><input type="text" inputmode="decimal" id="wallmanual" placeholder="Length (m)" style="width:110px" ${p.closed?"disabled":""}><button class="btn small" id="addwall" ${p.closed?"disabled":""}>Add wall</button></div>
-      <ol class="walllist" style="margin-top:10px">${p.walls.map((w,i)=>`<li><span>Wall ${i+1}</span><span>${ARROW[w.dir]}</span><input type="text" inputmode="decimal" data-wlen="${i}" value="${w.len.toFixed(3)}"></li>`).join("")||'<li class="hint" style="display:block">No walls yet.</li>'}</ol>
+      <ol class="walllist" style="margin-top:10px">${p.walls.map((w,i)=>`<li><span>Wall ${i+1}</span><span class="wa">${hArrow(wh(w))}</span><input type="text" inputmode="decimal" data-wlen="${i}" value="${w.len.toFixed(3)}" aria-label="Length">${i?`<input type="text" inputmode="decimal" data-wang="${i}" value="${cornerOf(wh(p.walls[i-1]),wh(w)).toFixed(1)}" aria-label="Corner angle" title="Corner angle before this wall">`:`<span class="hint">corner °</span>`}</li>`).join("")||'<li class="hint" style="display:block">No walls yet.</li>'}</ol>
       <div class="row" style="margin-top:10px"><button class="btn small" id="undowall" ${p.walls.length?"":"disabled"}>Undo wall</button><button class="btn small" id="closeroom" ${p.closed||p.walls.length<2?"disabled":""}>Close room</button><button class="btn small warn" id="clearplan">Clear</button></div>
     </div>
     <div class="card"><h2 style="margin-bottom:8px">Room figures</h2><dl class="kv">
@@ -1258,7 +1288,8 @@ function vPlan(){
   <div class="row" style="margin-top:16px"><button class="btn primary" data-go="4">Continue to report →</button></div>`;
 }
 function planTargetDefault(){const p=site().plan;
-  if(!p.closed)return {key:"wall",label:`Wall ${p.walls.length+1} ${ARROW[p.nextDir]}`,apply:v=>{addWall(v);render()}};
+  if(triOpen)return triTarget();
+  if(!p.closed)return {key:"wall",label:`Wall ${p.walls.length+1} ${hName(nextH(p))}`+(p.walls.length&&Math.abs((p.corner??90)-90)>0.05?` (corner ${p.corner}°)`:""),apply:v=>{addWall(v);render()}};
   if(num(p.ceiling)===null)return ceilTarget();return null}
 function ceilTarget(){return {key:"ceiling",label:"Ceiling height",apply:v=>{snap();site().plan.ceiling=f2(v);save();setTarget(planTargetDefault());render()}}}
 
@@ -1289,8 +1320,12 @@ function drawPlan(ctx,W,H,s,opt={}){
   /* walls */
   ctx.strokeStyle=ink;ctx.lineWidth=Math.max(4,Math.min(10,0.2*sc));ctx.lineCap="square";
   for(let i=0;i<pts.length-1;i++){ctx.beginPath();ctx.moveTo(X(pts[i][0]),Y(pts[i][1]));ctx.lineTo(X(pts[i+1][0]),Y(pts[i+1][1]));ctx.stroke()}
-  p.walls.forEach((w,i)=>{const a=pts[i],b=pts[i+1],d=DIRS[w.dir],nx=d[1],ny=-d[0];tag(ctx,w.len.toFixed(2)+" m",X((a[0]+b[0])/2)+nx*26,Y((a[1]+b[1])/2)+ny*26,acc,bg)});
-  if(!p.closed){const e=pts[pts.length-1],d=DIRS[p.nextDir],ex=X(e[0]),ey=Y(e[1]);ctx.fillStyle=sig;ctx.beginPath();ctx.arc(ex,ey,7,0,7);ctx.fill();
+  let sa=0;for(let i=0;i<pts.length-1;i++)sa+=pts[i][0]*pts[i+1][1]-pts[i+1][0]*pts[i][1];const orient=sa<0?-1:1;
+  p.walls.forEach((w,i)=>{const a=pts[i],b=pts[i+1],d=headVec(wh(w)),nx=d[1]*orient,ny=-d[0]*orient;tag(ctx,w.len.toFixed(2)+" m",X((a[0]+b[0])/2)+nx*26,Y((a[1]+b[1])/2)+ny*26,acc,bg)});
+  planCorners(p).forEach(c=>{if(Math.abs(c.ang-90)<0.3)return;const q=pts[c.i],h1=wh(p.walls[(c.i-1+p.walls.length)%p.walls.length]),h2=wh(p.walls[c.i]);
+    const v1=headVec(h1+180),v2=headVec(h2);let bx=v1[0]+v2[0],by=v1[1]+v2[1];const bl=Math.hypot(bx,by)||1;bx/=bl;by/=bl;
+    tag(ctx,c.ang.toFixed(1)+"°",X(q[0])+bx*30,Y(q[1])+by*30,sig,bg)});
+  if(!p.closed){const e=pts[pts.length-1],d=headVec(nextH(p)),ex=X(e[0]),ey=Y(e[1]);ctx.fillStyle=sig;ctx.beginPath();ctx.arc(ex,ey,7,0,7);ctx.fill();
     if(!EX){ctx.strokeStyle=sig;ctx.lineWidth=3;ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex+d[0]*60,ey+d[1]*60);ctx.stroke();ctx.setLineDash([]);
       ctx.beginPath();const tx=ex+d[0]*70,ty=ey+d[1]*70;ctx.moveTo(tx+d[0]*10,ty+d[1]*10);ctx.lineTo(tx-d[1]*8,ty+d[0]*8);ctx.lineTo(tx+d[1]*8,ty-d[0]*8);ctx.closePath();ctx.fill()}}
   /* area */
@@ -1669,7 +1704,7 @@ function render(){
   renderSitePicker();renderRail();closePop();
   $("#main").innerHTML=[vSite,vReqs,vSurvey,vPlan,vReport,vLibrary][state.step]();
   if(state.step!==3&&planFull){planFull=false;document.body.classList.remove("planfull")}
-  if(state.step===3){setupPlan();if(!target||target.key==="wall"||target.key==="pop"||(target.key==="ceiling"&&num(site().plan.ceiling)!==null))setTarget(planTargetDefault())}
+  if(state.step===3){setupPlan();if(!target||target.key==="wall"||target.key==="pop"||target.key==="tri"||(target.key==="ceiling"&&num(site().plan.ceiling)!==null))setTarget(planTargetDefault())}
   else if(state.step!==2&&target)setTarget(null);
   renderTargetBar();hydratePhotos();
   document.documentElement.style.setProperty("--topH",$("#top").offsetHeight+"px");
@@ -1688,7 +1723,12 @@ function bindStep(){
   b("pfit",()=>{cam={z:1,tx:0,ty:0};planRedraw()});
   b("pfinger",()=>{fingerDraws=!fingerDraws;const el=$("#pfinger");el.setAttribute("aria-pressed",fingerDraws);el.querySelector(".tl").textContent=fingerDraws?"Finger draws":"Finger moves";toast(fingerDraws?"One finger now draws; two fingers move and zoom":"Finger moves the plan; Apple Pencil draws")});
   b("pfull",()=>{planFull=!planFull;closePop();render()});
-  b("undowall",()=>{snap();const p=s.plan;const w=p.walls.pop();if(w){p.nextDir=w.dir;p.closed=false;p.gap=null}save();render()});
+  b("undowall",()=>{snap();const p=s.plan;const w=p.walls.pop();if(w){p.nextH=wh(w);p.closed=false;p.gap=null;const l=lastH(p);if(l!==null){const t=norm180(p.nextH-l);p.corner=Math.round((180-Math.abs(t))*10)/10;if(t)p.turnDir=t>0?1:-1}else p.corner=90}save();render()});
+  b("trito",()=>{triOpen=!triOpen;triAct="c";setTarget(planTargetDefault());render()});
+  b("triuse",()=>{const a=triAngle();if(a===null)return;snap();setCorner(s.plan,Math.round(a*10)/10);triOpen=false;triV.c="";save();setTarget(planTargetDefault());render();toast("Corner angle "+a.toFixed(1)+"° set. Shoot the next wall")});
+  const ca=$("#cornerang");if(ca)ca.onchange=()=>{const v=num(ca.value);if(v>0&&v<360){snap();setCorner(s.plan,v);save();setTarget(planTargetDefault());render()}else toast("Angle must be between 0 and 360°")};
+  document.querySelectorAll("[data-tri]").forEach(el=>{el.onfocus=()=>{triAct=el.dataset.tri;setTarget(triTarget());document.querySelectorAll(".tri .pf").forEach(x=>x.classList.toggle("on",x.contains(el)))};
+    el.onchange=()=>{triV[el.dataset.tri]=el.value.trim();render()}});
   b("closeroom",()=>{snap();closeRoom();render()});
   b("clearplan",e=>{const btn=e.target;if(!btn.dataset.arm){btn.dataset.arm=1;btn.textContent="Tap again";setTimeout(()=>{btn.textContent="Clear";delete btn.dataset.arm},2500);return}snap();s.plan=blankPlan();cam={z:1,tx:0,ty:0};save();render();toast("Plan cleared")});
   b("ceiltg",()=>{setTarget(target&&target.key==="ceiling"?planTargetDefault():ceilTarget());render()});
@@ -1728,7 +1768,9 @@ $("#main").addEventListener("click",async e=>{
   if(d.st){const v=sv(s,d.st);v.status=v.status===d.v?"":d.v;v.auto=false;save();const y=scrollY;render();scrollTo(0,y);return}
   if(d.tgt){const r=applicable(s).find(x=>x.id===d.tgt);if(target&&target.key===d.tgt)setTarget(null);else setTarget(surveyTarget(r));const y=scrollY;render();scrollTo(0,y);return}
   if(d.tool){tool=d.tool;closePop();sel=null;planRedraw();document.querySelectorAll(".tool[data-tool]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.tool===tool));return}
-  if(d.dir!==undefined){s.plan.nextDir=+d.dir;save();setTarget(planTargetDefault());render();return}
+  if(d.dir!==undefined){const p=s.plan;p.nextH=+d.dir*90;const l=lastH(p);if(l!==null){const t=norm180(p.nextH-l);p.corner=Math.round((180-Math.abs(t))*10)/10;if(t)p.turnDir=t>0?1:-1}save();setTarget(planTargetDefault());render();return}
+  if(d.turn!==undefined){const p=s.plan;setCorner(p,p.corner??90,+d.turn);save();setTarget(planTargetDefault());render();return}
+  if(d.quick!==undefined){const p=s.plan;setCorner(p,+d.quick);save();setTarget(planTargetDefault());render();return}
   if(d.view){const src=await getPhoto(d.view);const m=document.createElement("div");m.className="modal";
     m.innerHTML=`<div class="card"><img src="${src}" alt="Photo"><div class="row" style="margin-top:10px"><button class="btn" data-close>Close</button>${d.item?`<button class="btn warn" data-delph>Delete photo</button>`:""}</div></div>`;
     document.body.appendChild(m);m.onclick=ev=>{if(ev.target===m||ev.target.dataset.close!==undefined)m.remove();if(ev.target.dataset.delph!==undefined){const v=sv(s,d.item);v.photos=v.photos.filter(p=>p!==d.view);save();m.remove();render()}}}
@@ -1743,6 +1785,10 @@ $("#main").addEventListener("change",async e=>{const t=e.target,s=site();
   if(t.dataset.mkey){s.mkey[t.dataset.mkey]=t.value;save();render();toast("Model: "+t.options[t.selectedIndex].text);return}
   if(t.dataset.respsel){s.resp[t.dataset.respsel]=t.value;save();const y=scrollY;render();scrollTo(0,y);toast("Owner changed to "+t.value);return}
   if(t.dataset.meas){const r=applicable(s).find(x=>x.id===t.dataset.meas);setMeasured(s,r,t.value.trim(),true);save();const y=scrollY;render();scrollTo(0,y)}
+  if(t.dataset.wang!==undefined){const p=s.plan,i=+t.dataset.wang,v=num(t.value);if(!(v>0&&v<360)){toast("Angle must be between 0 and 360°");render();return}
+    snap();const old=norm180(wh(p.walls[i])-wh(p.walls[i-1])),sg=old<0?-1:1,delta=sg*(180-v)-old;
+    for(let j=i;j<p.walls.length;j++)p.walls[j].h=r6(normA(wh(p.walls[j])+delta));p.nextH=r6(normA(nextH(p)+delta));
+    if(p.closed){const pts=planPts(p),e2=pts[pts.length-1];p.gap=Math.hypot(e2[0],e2[1]);if(p.gap>0.05)toast("Room no longer closes: gap "+f2(p.gap)+" m. Check the walls or Undo")}save();render();return}
   if(t.dataset.wlen!==undefined){const v=num(t.value);if(v&&v>0.05){snap();s.plan.walls[+t.dataset.wlen].len=v;const pts=planPts(s.plan),e2=pts[pts.length-1];if(s.plan.closed)s.plan.gap=Math.hypot(e2[0],e2[1]);save();render()}}
   if(t.dataset.photo&&t.files&&t.files[0]){try{const data=await compress(t.files[0]);const id="P"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);await putPhoto(id,data);sv(s,t.dataset.photo).photos.push(id);save();const y=scrollY;render();scrollTo(0,y);toast("Photo added")}catch(err){toast("Couldn't read that photo")}}
 });
